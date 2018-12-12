@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<addon
+  id="pvr.freebox"
+  version="1.0"
+  name="PVR Freebox TV"
+  provider-name="aassif">
+  <requires>@ADDON_DEPENDS@</requires>
+  <extension
+    point="xbmc.pvrclient"
+    library_@PLATFORM@="@LIBRARY_FILENAME@"/>
+  <extension point="xbmc.addon.metadata">
+    <summary lang="fr_FR">Extension enregistreur vidéo (PVR) pour Freebox TV. https://github.com/aassif/pvr.freebox</summary>
+    <description lang="fr_FR">Le client enregistreur vidéo (PVR) gère les chaînes Freebox TV et le guide électronique des programmes.</description>
+    <disclaimer lang="fr_FR">Logiciel en cours d'élaboration !</disclaimer>
+    <platform>@PLATFORM@</platform>
+  </extension>
+</addon>

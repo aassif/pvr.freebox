@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<settings version="1">
+  <section id="section" label="40000" description="540000">
+    <category id="pvr.freebox.television" label="41000" description="541000">
+      <group id="pvr.freebox.television.group1" label="41100">
+        <setting id="quality" type="integer" label="41110" help="541110">
+          <level>0</level>
+          <default>1</default> <!-- Auto -->
+          <constraints>
+            <options>
+              <option label="41111">1</option> <!-- Auto -->
+              <option label="41112">2</option> <!-- High -->
+              <option label="41113">3</option> <!-- Standard -->
+              <option label="41114">4</option> <!-- Low -->
+            </options>
+          </constraints>
+          <control type="list" format="string" />
+        </setting>
+      </group>
+    </category> <!-- pvr.freebox.television -->
+    <category id="pvr.freebox.epg" label="42000" description="542000">
+      <group id="pvr.freebox.epg.group1" label="42100">
+        <setting id="extended" type="boolean" label="42110" help="542110">
+          <level>0</level>
+          <default>false</default>
+          <control type="toggle" />
+        </setting>
+        <setting id="delay" type="integer" label="42120" help="542120">
+          <level>0</level>
+          <default>10</default>
+          <constraints>
+            <minimum>0</minimum>
+            <step>5</step>
+            <maximum>30</maximum>
+          </constraints>
+          <control type="spinner" format="string" />
+        </setting>
+      </group>
+    </category> <!-- pvr.freebox.epg -->
+  </section>
+</settings>
