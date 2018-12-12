@@ -98,7 +98,14 @@ inline string StrNumbers (const vector<RawChannel> & v)
   return '[' + text + ']';
 }
 
-enum PVRFreeboxData::Quality PVRFreeboxData::Stream::Parse (const string & q)
+PVRFreeboxData::Stream::Stream (enum Quality quality,
+                                const string & url) :
+  quality (quality),
+  url (url)
+{
+}
+
+enum PVRFreeboxData::Quality PVRFreeboxData::Channel::ParseQuality (const string & q)
 {
   if (q == "auto") return AUTO;
   if (q == "hd")   return HD;
@@ -107,7 +114,7 @@ enum PVRFreeboxData::Quality PVRFreeboxData::Stream::Parse (const string & q)
   return DEFAULT;
 }
 
-int PVRFreeboxData::Stream::Score (enum Quality q, enum Quality q0)
+int PVRFreeboxData::Channel::Score (enum Quality q, enum Quality q0)
 {
   switch (q0)
   {
@@ -156,11 +163,6 @@ int PVRFreeboxData::Stream::Score (enum Quality q, enum Quality q0)
   }
 }
 
-PVRFreeboxData::Stream::Stream (enum Quality q, const string & u) :
-  quality (q), url (u)
-{
-}
-
 PVRFreeboxData::Channel::Channel (const string & uuid,
                                   const string & name,
                                   const string & logo,
@@ -183,30 +185,10 @@ PVRFreeboxData::Channel::Channel (const string & uuid,
         const Value  & s = streams [i];
         const string & q = s["quality"].GetString ();
         const string & r = s["rtsp"].GetString ();
-        this->streams.emplace_back (Stream::Parse (q), r);
+        this->streams.emplace_back (ParseQuality (q), r);
       }
     }
   }
-}
-
-int PVRFreeboxData::Channel::Find (enum Quality q) const
-{
-  if (streams.empty ()) return -1;
-
-  int index = 0;
-  int score = Stream::Score (streams[0].quality, q);
-
-  for (int i = 1; i < streams.size (); ++i)
-  {
-    int s = Stream::Score (streams[i].quality, q);
-    if (s > score)
-    {
-      index = i;
-      score = s;
-    }
-  }
-
-  return index;
 }
 
 void PVRFreeboxData::Channel::GetChannel (ADDON_HANDLE handle, bool radio) const
@@ -227,12 +209,23 @@ void PVRFreeboxData::Channel::GetChannel (ADDON_HANDLE handle, bool radio) const
 
 PVR_ERROR PVRFreeboxData::Channel::GetStreamProperties (enum Quality q, PVR_NAMED_VALUE * properties, unsigned int * count) const
 {
-  int k = Find (q);
-  if (k != -1)
+  if (! streams.empty ())
   {
-    const string & url = streams[k].url;
+    int index = 0;
+    int score = Score (streams[0].quality, q);
+
+    for (int i = 1; i < streams.size (); ++i)
+    {
+      int s = Score (streams[i].quality, q);
+      if (s > score)
+      {
+        index = i;
+        score = s;
+      }
+    }
+
     strncpy (properties[0].strName,  PVR_STREAM_PROPERTY_STREAMURL,         PVR_ADDON_NAME_STRING_LENGTH - 1);
-    strncpy (properties[0].strValue, url.c_str (),                          PVR_ADDON_NAME_STRING_LENGTH - 1);
+    strncpy (properties[0].strValue, streams[index].url.c_str (),           PVR_ADDON_NAME_STRING_LENGTH - 1);
     strncpy (properties[1].strName,  PVR_STREAM_PROPERTY_ISREALTIMESTREAM,  PVR_ADDON_NAME_STRING_LENGTH - 1);
     strncpy (properties[1].strValue, "true",                                PVR_ADDON_NAME_STRING_LENGTH - 1);
     *count = 2;
@@ -497,7 +490,6 @@ void PVRFreeboxData::ProcessEvent (const Event & e, EPG_EVENT_STATE state)
   tag.iFlags              = EPG_TAG_FLAG_UNDEFINED;
 
   PVR->EpgEventStateChange (&tag, state);
-  //PVR->TransferEpgEntry (handle, &tag);
 }
 
 void PVRFreeboxData::ProcessEvent (const Value & event, unsigned int channel, EPG_EVENT_STATE state)
@@ -685,11 +677,6 @@ PVR_ERROR PVRFreeboxData::GetChannelStreamProperties (const PVR_CHANNEL * channe
   if (f != m_tv_channels.end ())
     return f->second.GetStreamProperties (m_tv_quality, properties, count);
 
-  return PVR_ERROR_NO_ERROR;
-}
-
-PVR_ERROR PVRFreeboxData::GetEPGForChannel (ADDON_HANDLE handle, const PVR_CHANNEL & channel, time_t start, time_t end)
-{
   return PVR_ERROR_NO_ERROR;
 }
 

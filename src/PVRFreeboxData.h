@@ -48,9 +48,6 @@ class PVRFreeboxData :
     class Stream
     {
       public:
-        static enum Quality Parse (const std::string &);
-        static int Score (enum Quality, enum Quality q0);
-
         enum Quality quality;
         std::string  url;
 
@@ -64,6 +61,10 @@ class PVRFreeboxData :
         typedef std::map<enum Quality, std::string> Streams;
 
       protected:
+        static enum Quality ParseQuality (const std::string &);
+        static int Score (enum Quality q, enum Quality q0);
+
+      protected:
         bool                radio;
         std::string         uuid;
         std::string         name;
@@ -71,9 +72,6 @@ class PVRFreeboxData :
         int                 major;
         int                 minor;
         std::vector<Stream> streams;
-
-      protected:
-        int Find (enum Quality) const;
 
       public:
         Channel (const std::string & uuid,
@@ -146,7 +144,6 @@ class PVRFreeboxData :
     PVR_ERROR GetChannelGroups (ADDON_HANDLE, bool radio);
     PVR_ERROR GetChannelGroupMembers (ADDON_HANDLE, const PVR_CHANNEL_GROUP &);
     PVR_ERROR GetChannelStreamProperties (const PVR_CHANNEL *, PVR_NAMED_VALUE *, unsigned int * count);
-    PVR_ERROR GetEPGForChannel (ADDON_HANDLE, const PVR_CHANNEL &, time_t start, time_t end);
 
   protected:
     virtual void * Process ();

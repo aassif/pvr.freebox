@@ -199,10 +199,7 @@ PVR_ERROR SetEPGTimeFrame (int days)
 
 PVR_ERROR GetEPGForChannel (ADDON_HANDLE handle, const PVR_CHANNEL & channel, time_t start, time_t end)
 {
-  if (data)
-    return data->GetEPGForChannel (handle, channel, start, end);
-
-  return PVR_ERROR_SERVER_ERROR;
+  return PVR_ERROR_NO_ERROR;
 }
 
 int GetChannelsAmount ()
