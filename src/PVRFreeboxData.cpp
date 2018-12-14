@@ -111,6 +111,7 @@ enum PVRFreeboxData::Quality PVRFreeboxData::Channel::ParseQuality (const string
   if (q == "hd")   return HD;
   if (q == "sd")   return SD;
   if (q == "ld")   return LD;
+  if (q == "3d")   return STEREO;
   return DEFAULT;
 }
 
@@ -157,6 +158,9 @@ int PVRFreeboxData::Channel::Score (enum Quality q, enum Quality q0)
         case LD:   return 1000;
         default:   return 0;
       }
+
+    case STEREO:
+      return (q == STEREO) ? 1000 : 0;
 
     default:
       return 0;

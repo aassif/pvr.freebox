@@ -43,7 +43,7 @@ class PVRFreeboxData :
     }
 
     // Channel quality.
-    enum Quality {DEFAULT = 0, AUTO = 1, HD = 2, SD = 3, LD = 4};
+    enum Quality {DEFAULT = 0, AUTO = 1, HD = 2, SD = 3, LD = 4, STEREO = 5};
 
     class Stream
     {
