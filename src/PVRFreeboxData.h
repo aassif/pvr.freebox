@@ -93,12 +93,21 @@ class PVRFreeboxData :
         QueryType    type;
         std::string  query;
         unsigned int channel;
+        time_t       date;
 
       public:
         Query () : type (NONE) {}
 
-        Query (QueryType t, const std::string & q, unsigned int c = 0) :
-          type (t), query (q), channel (c) {}
+        Query (QueryType t,
+               const std::string & q,
+               unsigned int c = 0,
+               time_t d = 0) :
+          type (t),
+          query (q),
+          channel (c),
+          date (d)
+        {
+        }
     };
 
     // EPG events.
@@ -119,7 +128,7 @@ class PVRFreeboxData :
         std::string  outline;
 
       public:
-        Event (const rapidjson::Value &, unsigned int channel);
+        Event (const rapidjson::Value &, unsigned int channel, time_t date);
     };
 
   public:
@@ -154,7 +163,7 @@ class PVRFreeboxData :
     // Process JSON EPG.
     void ProcessFull    (const rapidjson::Value & epg);
     void ProcessChannel (const rapidjson::Value & epg, unsigned int channel);
-    void ProcessEvent   (const rapidjson::Value & epg, unsigned int channel, EPG_EVENT_STATE);
+    void ProcessEvent   (const rapidjson::Value & epg, unsigned int channel, time_t, EPG_EVENT_STATE);
 
     // If /api/v5/tv/epg/programs/* queries had a "date", things would be *way* easier!
     void ProcessEvent   (const Event &, EPG_EVENT_STATE);
@@ -181,7 +190,6 @@ class PVRFreeboxData :
     enum Quality m_tv_quality;
     std::queue<Query> m_epg_queries;
     std::set<std::string> m_epg_cache;
-    std::map<std::string, Event> m_epg_events;
     int m_epg_days;
     time_t m_epg_last;
     bool m_epg_extended;

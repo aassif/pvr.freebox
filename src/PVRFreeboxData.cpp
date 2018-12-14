@@ -254,10 +254,10 @@ bool PVRFreeboxData::ReadJSON (Document * doc, const string & url)
   return false;
 }
 
-PVRFreeboxData::Event::Event (const Value & e, unsigned int channel) :
+PVRFreeboxData::Event::Event (const Value & e, unsigned int channel, time_t date) :
   channel  (channel),
   uuid     (JSON<string> (e, "id")),
-  date     (JSON<int>    (e, "date")),
+  date     (JSON<int>    (e, "date", date)),
   duration (JSON<int>    (e, "duration")),
   title    (JSON<string> (e, "title")),
   subtitle (JSON<string> (e, "sub_title")),
@@ -307,8 +307,8 @@ bool PVRFreeboxData::ProcessChannels ()
 
     Conflict c (uuid, major, minor, i);
 
-    channels_by_uuid [uuid] .push_back (c);
-    channels_by_major[major].push_back (c);
+    conflicts_by_uuid [uuid] .push_back (c);
+    conflicts_by_major[major].push_back (c);
   }
 
   static const ConflictComparator comparator;
@@ -383,7 +383,6 @@ PVRFreeboxData::PVRFreeboxData (const string & path,
   m_tv_quality (Quality (quality)),
   m_epg_queries (),
   m_epg_cache (),
-  m_epg_events (),
   m_epg_days (0),
   m_epg_last (0),
   m_epg_extended (extended)
@@ -486,43 +485,21 @@ void PVRFreeboxData::ProcessEvent (const Event & e, EPG_EVENT_STATE state)
   PVR->EpgEventStateChange (&tag, state);
 }
 
-void PVRFreeboxData::ProcessEvent (const Value & event, unsigned int channel, EPG_EVENT_STATE state)
+void PVRFreeboxData::ProcessEvent (const Value & event, unsigned int channel, time_t date, EPG_EVENT_STATE state)
 {
-  switch (state)
-  {
-    case EPG_EVENT_CREATED:
-    {
-      Event e (event, channel);
-      {
-        P8PLATFORM::CLockObject lock (m_mutex);
-        if (m_epg_extended)
-        {
-          string query = "/api/v5/tv/epg/programs/" + e.uuid;
-          m_epg_events.insert (make_pair (e.uuid, e));
-          m_epg_queries.push (Query (EVENT, URL (query), channel));
-          //XBMC->Log (LOG_INFO, "Queued: '%s'", query.c_str ());
-        }
-      }
-      ProcessEvent (e, EPG_EVENT_CREATED);
-      break;
-    }
+  Event e (event, channel, date);
 
-    case EPG_EVENT_UPDATED:
+  if (state == EPG_EVENT_CREATED)
+  {
+    P8PLATFORM::CLockObject lock (m_mutex);
+    if (m_epg_extended)
     {
-      Event e (event, channel);
-      {
-        P8PLATFORM::CLockObject lock (m_mutex);
-        auto f = m_epg_events.find (e.uuid);
-        if (f != m_epg_events.end ())
-        {
-          e.date = f->second.date; // !!!
-          m_epg_events.erase (f);
-        }
-      }
-      ProcessEvent (e, EPG_EVENT_UPDATED);
-      break;
+      string query = "/api/v5/tv/epg/programs/" + e.uuid;
+      m_epg_queries.push (Query (EVENT, URL (query), channel, date));
     }
   }
+
+  ProcessEvent (e, state);
 }
 
 void PVRFreeboxData::ProcessChannel (const Value & epg, unsigned int channel)
@@ -530,7 +507,9 @@ void PVRFreeboxData::ProcessChannel (const Value & epg, unsigned int channel)
   for (auto i = epg.MemberBegin (); i != epg.MemberEnd (); ++i)
   {
     const Value & event = i->value;
+
     string uuid = JSON<string> (event, "id");
+    time_t date = JSON<int>    (event, "date");
 
     static const string PREFIX = "pluri_";
     if (uuid.find (PREFIX) != 0) continue;
@@ -542,7 +521,7 @@ void PVRFreeboxData::ProcessChannel (const Value & epg, unsigned int channel)
       if (m_epg_cache.count (query) > 0) continue;
     }
 
-    ProcessEvent (event, channel, EPG_EVENT_CREATED);
+    ProcessEvent (event, channel, date, EPG_EVENT_CREATED);
 
     {
       P8PLATFORM::CLockObject lock (m_mutex);
@@ -614,10 +593,15 @@ void * PVRFreeboxData::Process ()
           {
             case FULL    : ProcessFull    (r); break;
             case CHANNEL : ProcessChannel (r, q.channel); break;
-            case EVENT   : ProcessEvent   (r, q.channel, EPG_EVENT_UPDATED); break;
+            case EVENT   : ProcessEvent   (r, q.channel, q.date, EPG_EVENT_UPDATED); break;
           }
         }
       }
+    }
+    else
+    {
+      P8PLATFORM::CLockObject lock (m_mutex);
+      m_epg_cache.clear ();
     }
 
     Sleep (delay * 1000);
