@@ -33,7 +33,7 @@ using namespace ADDON;
 
 #define PVR_FREEBOX_C_STR(s) s.empty () ? NULL : s.c_str ()
 
-class RawChannel
+class Conflict
 {
   public:
     string uuid;
@@ -41,9 +41,9 @@ class RawChannel
     int position;     // position dans le bouquet
 
   public:
-    inline RawChannel (const string & id,
-                       int n1, int n2,
-                       int p) :
+    inline Conflict (const string & id,
+                     int n1, int n2,
+                     int p) :
       uuid (id),
       major (n1), minor (n2),
       position (p)
@@ -51,16 +51,16 @@ class RawChannel
     }
 };
 
-class RawChannelComparator
+class ConflictComparator
 {
   public:
-    inline bool operator() (const RawChannel & c1, const RawChannel & c2)
+    inline bool operator() (const Conflict & c1, const Conflict & c2)
     {
       return (c1.major < c2.major || c1.major == c2.major && c1.minor < c2.minor);
     }
 };
 
-inline string StrUUIDs (const vector<RawChannel> & v)
+inline string StrUUIDs (const vector<Conflict> & v)
 {
   string text;
   if (! v.empty ())
@@ -72,12 +72,12 @@ inline string StrUUIDs (const vector<RawChannel> & v)
   return '[' + text + ']';
 }
 
-inline string StrNumber (const RawChannel & c, bool minor)
+inline string StrNumber (const Conflict & c, bool minor)
 {
   return to_string (c.major) + (minor ? '.' + to_string (c.minor) : "");
 }
 
-inline string StrNumbers (const vector<RawChannel> & v)
+inline string StrNumbers (const vector<Conflict> & v)
 {
   string text;
   switch (v.size ())
@@ -291,12 +291,12 @@ bool PVRFreeboxData::ProcessChannels ()
   if (! bouquet.HasMember ("success") || ! bouquet["success"].GetBool ())    return false;
   if (! bouquet.HasMember ("result")  || ! bouquet["result"].IsArray ())     return false;
 
-  // Channel list.
-  typedef vector<RawChannel> RawChannels;
-  // Channels by UUID.
-  map<string, RawChannels> channels_by_uuid;
-  // Channels by major.
-  map<int, RawChannels> channels_by_major;
+  // Conflict list.
+  typedef vector<Conflict> Conflicts;
+  // Conflicts by UUID.
+  map<string, Conflicts> conflicts_by_uuid;
+  // Conflicts by major.
+  map<int, Conflicts> conflicts_by_major;
 
   const Value & r = bouquet ["result"];
   for (SizeType i = 0; i < r.Size (); ++i)
@@ -305,67 +305,61 @@ bool PVRFreeboxData::ProcessChannels ()
     int    major = r[i]["number"].GetInt ();
     int    minor = r[i]["sub_number"].GetInt ();
 
-    RawChannel c (uuid, major, minor, i);
+    Conflict c (uuid, major, minor, i);
 
     channels_by_uuid [uuid] .push_back (c);
     channels_by_major[major].push_back (c);
   }
 
-  static const RawChannelComparator comparator;
+  static const ConflictComparator comparator;
 
-  for (auto i = channels_by_major.begin (); i != channels_by_major.end (); ++i)
+  for (auto & [major, v1] : conflicts_by_major)
   {
-    RawChannels & q = i->second;
-    sort (q.begin (), q.end (), comparator);
-    const RawChannel & c0 = q.front ();
-    //cout << i->first << " : " << StrUUIDs (q) << endl;
+    sort (v1.begin (), v1.end (), comparator);
 
-    for (int i = 1; i < q.size (); ++i)
+    for (int j = 1; j < v1.size (); ++j)
     {
-      RawChannels & discarded = channels_by_uuid [q[i].uuid];
-      discarded.erase (remove_if (discarded.begin (), discarded.end (),
-        [&c0] (const RawChannel & c) {return c.major == c0.major;}));
+      Conflicts & v2 = conflicts_by_uuid [v1[j].uuid];
+      v2.erase (remove_if (v2.begin (), v2.end (),
+        [major] (const Conflict & c) {return c.major == major;}));
     }
 
-    q.erase (q.begin () + 1, q.end ());
+    v1.erase (v1.begin () + 1, v1.end ());
   }
 
-  for (auto i = channels_by_uuid.begin (); i != channels_by_uuid.end (); ++i)
+  for (auto & [uuid, v1] : conflicts_by_uuid)
   {
-    RawChannels & q = i->second;
-    if (! q.empty ())
+    if (! v1.empty ())
     {
-      sort (q.begin (), q.end (), comparator);
-      const RawChannel & c0 = q.front ();
-      //cout << i->first << " : " << StrNumbers (q) << endl;
+      sort (v1.begin (), v1.end (), comparator);
 
-      for (int i = 1; i < q.size (); ++i)
+      for (int j = 1; j < v1.size (); ++j)
       {
-        RawChannels & discarded = channels_by_major [q[i].major];
-        discarded.erase (remove_if (discarded.begin (), discarded.end (),
-          [&c0] (const RawChannel & c) {return c.uuid == c0.uuid;}));
+        Conflicts & v2 = conflicts_by_major [v1[j].major];
+        v2.erase (remove_if (v2.begin (), v2.end (),
+          [&uuid] (const Conflict & c) {return c.uuid == uuid;}));
       }
 
-      q.erase (q.begin () + 1, q.end ());
+      v1.erase (v1.begin () + 1, v1.end ());
     }
   }
 
 #if 0
-  for (auto i = channels_by_major.begin (); i != channels_by_major.end (); ++i)
-    cout << i->first << " : " << StrUUIDs (i->second) << endl;
+  for (auto i : conflicts_by_major)
+    cout << i.first << " : " << StrUUIDs (i.second) << endl;
 #endif
 
 #if 0
-  for (auto i = channels_by_uuid.begin (); i != channels_by_uuid.end (); ++i)
-    cout << i->first << " : " << StrNumbers (i->second) << endl;
+  for (auto i = conflicts_by_uuid)
+    cout << i.first << " : " << StrNumbers (i.second) << endl;
 #endif
 
-  for (auto i = channels_by_major.begin (); i != channels_by_major.end (); ++i)
+  for (auto i : conflicts_by_major)
   {
-    const vector<RawChannel> & q = i->second;
+    const vector<Conflict> & q = i.second;
     if (! q.empty ())
     {
-      const RawChannel & ch = q.front ();
+      const Conflict & ch = q.front ();
       const Value  & channel = channels["result"][ch.uuid.c_str ()];
       const string & name    = channel["name"].GetString ();
       const string & logo    = URL (channel["logo_url"].GetString ());
@@ -642,8 +636,9 @@ PVR_ERROR PVRFreeboxData::GetChannels (ADDON_HANDLE handle, bool radio)
 {
   P8PLATFORM::CLockObject lock (m_mutex);
 
-  for (auto i = m_tv_channels.begin (); i != m_tv_channels.end (); ++i)
-    i->second.GetChannel (handle, radio);
+  //for (auto i = m_tv_channels.begin (); i != m_tv_channels.end (); ++i)
+  for (auto i : m_tv_channels)
+    i.second.GetChannel (handle, radio);
 
   return PVR_ERROR_NO_ERROR;
 }
