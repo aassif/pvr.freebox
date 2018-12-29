@@ -279,7 +279,7 @@ bool PVRFreeboxData::ProcessChannels ()
   m_tv_channels.clear ();
 
   Document channels;
-  if (! ReadJSON (&channels, URL ("/api/v5/tv/channels")))                  return false;
+  if (! ReadJSON (&channels, URL ("/api/v6/tv/channels")))                  return false;
   if (! channels.HasMember ("success") || ! channels["success"].GetBool ()) return false;
   if (! channels.HasMember ("result")  || ! channels["result"].IsObject ()) return false;
 
@@ -288,10 +288,10 @@ bool PVRFreeboxData::ProcessChannels ()
   XBMC->FreeString (notification);
 
   //Document bouquets;
-  //ReadJSON (&m_tv_bouquets, URL ("/api/v5/tv/bouquets"));
+  //ReadJSON (&m_tv_bouquets, URL ("/api/v6/tv/bouquets"));
 
   Document bouquet;
-  if (! ReadJSON (&bouquet, URL ("/api/v5/tv/bouquets/freeboxtv/channels"))) return false;
+  if (! ReadJSON (&bouquet, URL ("/api/v6/tv/bouquets/freeboxtv/channels"))) return false;
   if (! bouquet.HasMember ("success") || ! bouquet["success"].GetBool ())    return false;
   if (! bouquet.HasMember ("result")  || ! bouquet["result"].IsArray ())     return false;
 
@@ -498,7 +498,7 @@ void PVRFreeboxData::ProcessEvent (const Value & event, unsigned int channel, ti
     P8PLATFORM::CLockObject lock (m_mutex);
     if (m_epg_extended)
     {
-      string query = "/api/v5/tv/epg/programs/" + e.uuid;
+      string query = "/api/v6/tv/epg/programs/" + e.uuid;
       m_epg_queries.push (Query (EVENT, URL (query), channel, date));
     }
   }
@@ -518,7 +518,7 @@ void PVRFreeboxData::ProcessChannel (const Value & epg, unsigned int channel)
     static const string PREFIX = "pluri_";
     if (uuid.find (PREFIX) != 0) continue;
 
-    string query = "/api/v5/tv/epg/programs/" + uuid;
+    string query = "/api/v6/tv/epg/programs/" + uuid;
 
     {
       P8PLATFORM::CLockObject lock (m_mutex);
@@ -563,7 +563,7 @@ void * PVRFreeboxData::Process ()
     for (time_t t = last - (last % 3600); t < end; t += 3600)
     {
       string epoch = to_string (t);
-      string query = "/api/v5/tv/epg/by_time/" + epoch;
+      string query = "/api/v6/tv/epg/by_time/" + epoch;
       {
         P8PLATFORM::CLockObject lock (m_mutex);
         m_epg_queries.push (Query (FULL, URL (query)));

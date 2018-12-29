@@ -165,7 +165,7 @@ class PVRFreeboxData :
     void ProcessChannel (const rapidjson::Value & epg, unsigned int channel);
     void ProcessEvent   (const rapidjson::Value & epg, unsigned int channel, time_t, EPG_EVENT_STATE);
 
-    // If /api/v5/tv/epg/programs/* queries had a "date", things would be *way* easier!
+    // If /api/v6/tv/epg/programs/* queries had a "date", things would be *way* easier!
     void ProcessEvent   (const Event &, EPG_EVENT_STATE);
 
   protected:
