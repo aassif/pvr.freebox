@@ -105,7 +105,7 @@ PVRFreeboxData::Stream::Stream (enum Quality quality,
 {
 }
 
-enum PVRFreeboxData::Quality PVRFreeboxData::Channel::ParseQuality (const string & q)
+enum PVRFreeboxData::Quality PVRFreeboxData::ParseQuality (const string & q)
 {
   if (q == "auto") return AUTO;
   if (q == "hd")   return HD;
@@ -171,28 +171,14 @@ PVRFreeboxData::Channel::Channel (const string & uuid,
                                   const string & name,
                                   const string & logo,
                                   int major, int minor,
-                                  const Value & item) :
+                                  const vector<Stream> & streams) :
   radio (false),
   uuid (uuid),
   name (name),
   logo (logo),
   major (major), minor (minor),
-  streams ()
+  streams (streams)
 {
-  if (item.HasMember("available") && item["available"].GetBool () && item.HasMember("streams"))
-  {
-    const Value & streams = item["streams"];
-    if (streams.IsArray ())
-    {
-      for (SizeType i = 0; i < streams.Size (); ++i)
-      {
-        const Value  & s = streams [i];
-        const string & q = s["quality"].GetString ();
-        const string & r = s["rtsp"].GetString ();
-        this->streams.emplace_back (ParseQuality (q), r);
-      }
-    }
-  }
 }
 
 void PVRFreeboxData::Channel::GetChannel (ADDON_HANDLE handle, bool radio) const
@@ -368,7 +354,23 @@ bool PVRFreeboxData::ProcessChannels ()
       const string & name    = channel["name"].GetString ();
       const string & logo    = URL (channel["logo_url"].GetString ());
       const Value  & item    = bouquet["result"][ch.position];
-      m_tv_channels.emplace (ChannelId (ch.uuid), Channel (ch.uuid, name, logo, ch.major, ch.minor, item));
+
+      if (item.HasMember("available") && item["available"].GetBool () && item.HasMember("streams"))
+      {
+        const Value & streams = item["streams"];
+        if (streams.IsArray ())
+        {
+          vector<Stream> data;
+          for (SizeType i = 0; i < streams.Size (); ++i)
+          {
+            const Value  & s = streams [i];
+            const string & q = s["quality"].GetString ();
+            const string & r = s["rtsp"].GetString ();
+            data.emplace_back (ParseQuality (q), r);
+          }
+          m_tv_channels.emplace (ChannelId (ch.uuid), Channel (ch.uuid, name, logo, ch.major, ch.minor, data));
+        }
+      }
     }
   }
 
@@ -491,6 +493,12 @@ void PVRFreeboxData::ProcessEvent (const Event & e, EPG_EVENT_STATE state)
 
 void PVRFreeboxData::ProcessEvent (const Value & event, unsigned int channel, time_t date, EPG_EVENT_STATE state)
 {
+  {
+    P8PLATFORM::CLockObject lock (m_mutex);
+    auto f = m_tv_channels.find (channel);
+    if (f == m_tv_channels.end ()) return;
+  }
+
   Event e (event, channel, date);
 
   if (state == EPG_EVENT_CREATED)

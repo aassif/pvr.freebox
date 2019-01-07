@@ -61,7 +61,6 @@ class PVRFreeboxData :
         typedef std::map<enum Quality, std::string> Streams;
 
       protected:
-        static enum Quality ParseQuality (const std::string &);
         static int Score (enum Quality q, enum Quality q0);
 
       protected:
@@ -78,7 +77,7 @@ class PVRFreeboxData :
                  const std::string & name,
                  const std::string & logo,
                  int major, int minor,
-                 const rapidjson::Value & item);
+                 const std::vector<Stream> &);
 
         void GetChannel (ADDON_HANDLE, bool radio) const;
         PVR_ERROR GetStreamProperties (enum Quality, PVR_NAMED_VALUE *, unsigned int * count) const;
@@ -169,6 +168,8 @@ class PVRFreeboxData :
     void ProcessEvent   (const Event &, EPG_EVENT_STATE);
 
   protected:
+    static enum Quality ParseQuality (const std::string &);
+
     static bool ReadJSON (rapidjson::Document *, const std::string & url);
 
     template <typename T>
