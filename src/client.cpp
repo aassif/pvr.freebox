@@ -21,7 +21,7 @@
 
 #include "client.h"
 #include "xbmc_pvr_dll.h"
-#include "PVRFreeboxData.h"
+#include "Freebox.h"
 #include "p8-platform/util/util.h"
 
 using namespace ADDON;
@@ -36,13 +36,13 @@ using namespace ADDON;
 #endif
 #endif
 
-std::string      path;
-int              quality  = 1;
-bool             extended = false;
-int              delay    = 0;
-bool             init     = false;
-ADDON_STATUS     status   = ADDON_STATUS_UNKNOWN;
-PVRFreeboxData * data     = nullptr;
+std::string  path;
+int          quality  = 1;
+bool         extended = false;
+int          delay    = 0;
+bool         init     = false;
+ADDON_STATUS status   = ADDON_STATUS_UNKNOWN;
+Freebox    * data     = nullptr;
 
 CHelper_libXBMC_addon * XBMC = nullptr;
 CHelper_libXBMC_pvr   * PVR  = nullptr;
@@ -89,7 +89,7 @@ ADDON_STATUS ADDON_Create (void * callbacks, void * properties)
 
   ADDON_ReadSettings ();
 
-  data   = new PVRFreeboxData (p->strUserPath, quality, p->iEpgMaxDays, extended, delay);
+  data   = new Freebox (p->strUserPath, quality, p->iEpgMaxDays, extended, delay);
   status = ADDON_STATUS_OK;
   init   = true;
 

@@ -23,10 +23,10 @@ include_directories(${kodiplatform_INCLUDE_DIRS}
 set(DEPLIBS ${p8-platform_LIBRARIES} stdc++fs)
 
 set(FREEBOX_SOURCES src/client.cpp
-                    src/PVRFreeboxData.cpp)
+                    src/Freebox.cpp)
 
 set(FREEBOX_HEADERS src/client.h
-                    src/PVRFreeboxData.h)
+                    src/Freebox.h)
 
 build_addon(pvr.freebox FREEBOX DEPLIBS)
 

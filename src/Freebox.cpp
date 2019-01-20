@@ -32,7 +32,7 @@
 #include "p8-platform/util/StringUtils.h"
 
 #include "client.h"
-#include "PVRFreeboxData.h"
+#include "Freebox.h"
 
 #include "curl/curl.h"
 #include "openssl/sha.h"
@@ -100,7 +100,7 @@ long freebox_http (const string & custom, const string & url, const string & req
 }
 
 /* static */
-enum PVRFreeboxData::Quality PVRFreeboxData::ParseQuality (const string & q)
+enum Freebox::Quality Freebox::ParseQuality (const string & q)
 {
   if (q == "auto") return AUTO;
   if (q == "hd")   return HD;
@@ -111,10 +111,10 @@ enum PVRFreeboxData::Quality PVRFreeboxData::ParseQuality (const string & q)
 }
 
 /* static */
-bool PVRFreeboxData::HTTP (const string & custom,
-                           const string & path,
-                           const Document & request,
-                           Document * doc, Type type) const
+bool Freebox::HTTP (const string & custom,
+                    const string & path,
+                    const Document & request,
+                    Document * doc, Type type) const
 {
   P8PLATFORM::CLockObject lock (m_mutex);
   string url = URL (path);
@@ -162,37 +162,37 @@ bool PVRFreeboxData::HTTP (const string & custom,
 }
 
 /* static */
-bool PVRFreeboxData::GET (const string & path,
-                          Document * doc, Type type) const
+bool Freebox::GET (const string & path,
+                   Document * doc, Type type) const
 {
   return HTTP ("GET", path, Document (), doc, type);
 }
 
 /* static */
-bool PVRFreeboxData::POST (const string & path,
-                           const Document & request,
-                           Document * doc, Type type) const
+bool Freebox::POST (const string & path,
+                    const Document & request,
+                    Document * doc, Type type) const
 {
   return HTTP ("POST", path, request, doc, type);
 }
 
 /* static */
-bool PVRFreeboxData::PUT (const string & path,
-                          const Document & request,
-                          Document * doc, Type type) const
+bool Freebox::PUT (const string & path,
+                   const Document & request,
+                   Document * doc, Type type) const
 {
   return HTTP ("PUT", path, request, doc, type);
 }
 
 /* static */
-bool PVRFreeboxData::DELETE (const string & path,
-                             Document * doc) const
+bool Freebox::DELETE (const string & path,
+                      Document * doc) const
 {
   return HTTP ("DELETE", path, Document (), doc, kNullType);
 }
 
 /* static */
-string PVRFreeboxData::Password (const string & token, const string & challenge)
+string Freebox::Password (const string & token, const string & challenge)
 {
   unsigned char password [EVP_MAX_MD_SIZE];
   unsigned int length;
@@ -210,7 +210,7 @@ string PVRFreeboxData::Password (const string & token, const string & challenge)
   return oss.str ();
 }
 
-bool PVRFreeboxData::StartSession ()
+bool Freebox::StartSession ()
 {
   P8PLATFORM::CLockObject lock (m_mutex);
 
@@ -291,7 +291,7 @@ bool PVRFreeboxData::StartSession ()
   return false;
 }
 
-bool PVRFreeboxData::CloseSession ()
+bool Freebox::CloseSession ()
 {
   if (! m_session_token.empty ())
   {
@@ -367,14 +367,14 @@ inline string StrNumbers (const vector<Conflict> & v)
   return '[' + text + ']';
 }
 
-PVRFreeboxData::Stream::Stream (enum Quality quality,
-                                const string & url) :
+Freebox::Stream::Stream (enum Quality quality,
+                         const string & url) :
   quality (quality),
   url (url)
 {
 }
 
-int PVRFreeboxData::Channel::Score (enum Quality q, enum Quality q0)
+int Freebox::Channel::Score (enum Quality q, enum Quality q0)
 {
   switch (q0)
   {
@@ -426,11 +426,11 @@ int PVRFreeboxData::Channel::Score (enum Quality q, enum Quality q0)
   }
 }
 
-PVRFreeboxData::Channel::Channel (const string & uuid,
-                                  const string & name,
-                                  const string & logo,
-                                  int major, int minor,
-                                  const vector<Stream> & streams) :
+Freebox::Channel::Channel (const string & uuid,
+                           const string & name,
+                           const string & logo,
+                           int major, int minor,
+                           const vector<Stream> & streams) :
   radio (false),
   uuid (uuid),
   name (name),
@@ -440,12 +440,12 @@ PVRFreeboxData::Channel::Channel (const string & uuid,
 {
 }
 
-bool PVRFreeboxData::Channel::IsHidden () const
+bool Freebox::Channel::IsHidden () const
 {
   return streams.empty ();
 }
 
-void PVRFreeboxData::Channel::GetChannel (ADDON_HANDLE handle, bool radio) const
+void Freebox::Channel::GetChannel (ADDON_HANDLE handle, bool radio) const
 {
   PVR_CHANNEL channel;
   memset (&channel, 0, sizeof (PVR_CHANNEL));
@@ -461,7 +461,7 @@ void PVRFreeboxData::Channel::GetChannel (ADDON_HANDLE handle, bool radio) const
   PVR->TransferChannelEntry (handle, &channel);
 }
 
-PVR_ERROR PVRFreeboxData::Channel::GetStreamProperties (enum Quality q, PVR_NAMED_VALUE * properties, unsigned int * count) const
+PVR_ERROR Freebox::Channel::GetStreamProperties (enum Quality q, PVR_NAMED_VALUE * properties, unsigned int * count) const
 {
   if (! streams.empty ())
   {
@@ -488,7 +488,7 @@ PVR_ERROR PVRFreeboxData::Channel::GetStreamProperties (enum Quality q, PVR_NAME
   return PVR_ERROR_NO_ERROR;
 }
 
-PVRFreeboxData::Event::Event (const Value & e, unsigned int channel, time_t date) :
+Freebox::Event::Event (const Value & e, unsigned int channel, time_t date) :
   channel  (channel),
   uuid     (JSON<string> (e, "id")),
   date     (JSON<int>    (e, "date", date)),
@@ -504,7 +504,7 @@ PVRFreeboxData::Event::Event (const Value & e, unsigned int channel, time_t date
 {
 }
 
-bool PVRFreeboxData::ProcessChannels ()
+bool Freebox::ProcessChannels ()
 {
   m_tv_channels.clear ();
 
@@ -615,11 +615,11 @@ bool PVRFreeboxData::ProcessChannels ()
   return true;
 }
 
-PVRFreeboxData::PVRFreeboxData (const string & path,
-                                int quality,
-                                int days,
-                                bool extended,
-                                int delay) :
+Freebox::Freebox (const string & path,
+                  int quality,
+                  int days,
+                  bool extended,
+                  int delay) :
   m_app_token (),
   m_track_id (),
   m_session_token (),
@@ -648,50 +648,50 @@ PVRFreeboxData::PVRFreeboxData (const string & path,
   CreateThread (false);
 }
 
-PVRFreeboxData::~PVRFreeboxData ()
+Freebox::~Freebox ()
 {
   StopThread ();
   CloseSession ();
   curl_global_cleanup ();
 }
 
-string PVRFreeboxData::GetServer () const
+string Freebox::GetServer () const
 {
   P8PLATFORM::CLockObject lock (m_mutex);
   return m_server;
 }
 
 // NOT thread-safe !
-string PVRFreeboxData::URL (const string & query) const
+string Freebox::URL (const string & query) const
 {
   return "http://" + m_server + query;
 }
 
-void PVRFreeboxData::SetQuality (int q)
+void Freebox::SetQuality (int q)
 {
   P8PLATFORM::CLockObject lock (m_mutex);
   m_tv_quality = Quality (q);
 }
 
-void PVRFreeboxData::SetDays (int d)
+void Freebox::SetDays (int d)
 {
   P8PLATFORM::CLockObject lock (m_mutex);
   m_epg_days = d != EPG_TIMEFRAME_UNLIMITED ? min (d, 7) : 7;
 }
 
-void PVRFreeboxData::SetExtended (bool e)
+void Freebox::SetExtended (bool e)
 {
   P8PLATFORM::CLockObject lock (m_mutex);
   m_epg_extended = e;
 }
 
-void PVRFreeboxData::SetDelay (int d)
+void Freebox::SetDelay (int d)
 {
   P8PLATFORM::CLockObject lock (m_mutex);
   m_delay = d;
 }
 
-void PVRFreeboxData::ProcessEvent (const Event & e, EPG_EVENT_STATE state)
+void Freebox::ProcessEvent (const Event & e, EPG_EVENT_STATE state)
 {
 #if 0
   cout << e.uuid << " : " << e.title << ' ' << e.date << '+' << e.duration << " (" << e.channel << ')' << endl;
@@ -743,7 +743,7 @@ void PVRFreeboxData::ProcessEvent (const Event & e, EPG_EVENT_STATE state)
   PVR->EpgEventStateChange (&tag, state);
 }
 
-void PVRFreeboxData::ProcessEvent (const Value & event, unsigned int channel, time_t date, EPG_EVENT_STATE state)
+void Freebox::ProcessEvent (const Value & event, unsigned int channel, time_t date, EPG_EVENT_STATE state)
 {
   {
     P8PLATFORM::CLockObject lock (m_mutex);
@@ -766,7 +766,7 @@ void PVRFreeboxData::ProcessEvent (const Value & event, unsigned int channel, ti
   ProcessEvent (e, state);
 }
 
-void PVRFreeboxData::ProcessChannel (const Value & epg, unsigned int channel)
+void Freebox::ProcessChannel (const Value & epg, unsigned int channel)
 {
   for (auto i = epg.MemberBegin (); i != epg.MemberEnd (); ++i)
   {
@@ -794,7 +794,7 @@ void PVRFreeboxData::ProcessChannel (const Value & epg, unsigned int channel)
   }
 }
 
-void PVRFreeboxData::ProcessFull (const Value & epg)
+void Freebox::ProcessFull (const Value & epg)
 {
   for (auto i = epg.MemberBegin (); i != epg.MemberEnd (); ++i)
   {
@@ -803,7 +803,7 @@ void PVRFreeboxData::ProcessFull (const Value & epg)
   }
 }
 
-void * PVRFreeboxData::Process ()
+void * Freebox::Process ()
 {
   while (! IsStopped ())
   {
@@ -869,13 +869,13 @@ void * PVRFreeboxData::Process ()
 // C H A N N E L S /////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 
-int PVRFreeboxData::GetChannelsAmount ()
+int Freebox::GetChannelsAmount ()
 {
   P8PLATFORM::CLockObject lock (m_mutex);
   return m_tv_channels.size ();
 }
 
-PVR_ERROR PVRFreeboxData::GetChannels (ADDON_HANDLE handle, bool radio)
+PVR_ERROR Freebox::GetChannels (ADDON_HANDLE handle, bool radio)
 {
   P8PLATFORM::CLockObject lock (m_mutex);
 
@@ -886,23 +886,23 @@ PVR_ERROR PVRFreeboxData::GetChannels (ADDON_HANDLE handle, bool radio)
   return PVR_ERROR_NO_ERROR;
 }
 
-int PVRFreeboxData::GetChannelGroupsAmount ()
+int Freebox::GetChannelGroupsAmount ()
 {
   P8PLATFORM::CLockObject lock (m_mutex);
   return 0;
 }
 
-PVR_ERROR PVRFreeboxData::GetChannelGroups (ADDON_HANDLE handle, bool radio)
+PVR_ERROR Freebox::GetChannelGroups (ADDON_HANDLE handle, bool radio)
 {
   return PVR_ERROR_NO_ERROR;
 }
 
-PVR_ERROR PVRFreeboxData::GetChannelGroupMembers (ADDON_HANDLE handle, const PVR_CHANNEL_GROUP & group)
+PVR_ERROR Freebox::GetChannelGroupMembers (ADDON_HANDLE handle, const PVR_CHANNEL_GROUP & group)
 {
   return PVR_ERROR_NO_ERROR;
 }
 
-PVR_ERROR PVRFreeboxData::GetChannelStreamProperties (const PVR_CHANNEL * channel, PVR_NAMED_VALUE * properties, unsigned int * count)
+PVR_ERROR Freebox::GetChannelStreamProperties (const PVR_CHANNEL * channel, PVR_NAMED_VALUE * properties, unsigned int * count)
 {
   if (! channel || ! properties || ! count || *count < 2)
     return PVR_ERROR_INVALID_PARAMETERS;
@@ -919,7 +919,7 @@ PVR_ERROR PVRFreeboxData::GetChannelStreamProperties (const PVR_CHANNEL * channe
 // R E C O R D I N G S /////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 
-PVRFreeboxData::Recording::Recording (const Value & json) :
+Freebox::Recording::Recording (const Value & json) :
   id              (JSON<int>    (json, "id")),
   start           (JSON<int>    (json, "start")),
   end             (JSON<int>    (json, "end")),
@@ -937,7 +937,7 @@ PVRFreeboxData::Recording::Recording (const Value & json) :
 {
 }
 
-void PVRFreeboxData::ProcessRecordings ()
+void Freebox::ProcessRecordings ()
 {
   m_recordings.clear ();
 
@@ -955,13 +955,13 @@ void PVRFreeboxData::ProcessRecordings ()
   }
 }
 
-int PVRFreeboxData::GetRecordingsAmount (bool deleted) const
+int Freebox::GetRecordingsAmount (bool deleted) const
 {
   P8PLATFORM::CLockObject lock (m_mutex);
   return m_recordings.size ();
 }
 
-PVR_ERROR PVRFreeboxData::GetRecordings (ADDON_HANDLE handle, bool deleted) const
+PVR_ERROR Freebox::GetRecordings (ADDON_HANDLE handle, bool deleted) const
 {
   P8PLATFORM::CLockObject lock (m_mutex);
 
@@ -987,7 +987,7 @@ PVR_ERROR PVRFreeboxData::GetRecordings (ADDON_HANDLE handle, bool deleted) cons
   return PVR_ERROR_NO_ERROR;
 }
 
-PVR_ERROR PVRFreeboxData::GetRecordingStreamProperties (const PVR_RECORDING * recording, PVR_NAMED_VALUE * properties, unsigned int * count) const
+PVR_ERROR Freebox::GetRecordingStreamProperties (const PVR_RECORDING * recording, PVR_NAMED_VALUE * properties, unsigned int * count) const
 {
   if (! recording || ! properties || ! count || *count < 2)
     return PVR_ERROR_INVALID_PARAMETERS;
@@ -1010,7 +1010,7 @@ PVR_ERROR PVRFreeboxData::GetRecordingStreamProperties (const PVR_RECORDING * re
   return PVR_ERROR_NO_ERROR;
 }
 
-PVR_ERROR PVRFreeboxData::RenameRecording (const PVR_RECORDING & recording)
+PVR_ERROR Freebox::RenameRecording (const PVR_RECORDING & recording)
 {
   StartSession ();
 
@@ -1040,7 +1040,7 @@ PVR_ERROR PVRFreeboxData::RenameRecording (const PVR_RECORDING & recording)
   return PVR_ERROR_NO_ERROR;
 }
 
-PVR_ERROR PVRFreeboxData::DeleteRecording (const PVR_RECORDING & recording)
+PVR_ERROR Freebox::DeleteRecording (const PVR_RECORDING & recording)
 {
   StartSession ();
 
@@ -1067,7 +1067,7 @@ PVR_ERROR PVRFreeboxData::DeleteRecording (const PVR_RECORDING & recording)
 // T I M E R S /////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 
-PVRFreeboxData::Generator::Generator (const Value & json) :
+Freebox::Generator::Generator (const Value & json) :
   id               (JSON<int>    (json, "id")),
 //type             (JSON<string> (json, "type")),
   media            (JSON<string> (json, "media")),
@@ -1093,7 +1093,7 @@ PVRFreeboxData::Generator::Generator (const Value & json) :
 {
 }
 
-void PVRFreeboxData::ProcessGenerators ()
+void Freebox::ProcessGenerators ()
 {
   m_generators.clear ();
 
@@ -1112,7 +1112,7 @@ void PVRFreeboxData::ProcessGenerators ()
   }
 }
 
-PVRFreeboxData::Timer::Timer (const Value & json) :
+Freebox::Timer::Timer (const Value & json) :
   id             (JSON<int>    (json, "id")),
   start          (JSON<int>    (json, "start")),
   end            (JSON<int>    (json, "end")),
@@ -1135,7 +1135,7 @@ PVRFreeboxData::Timer::Timer (const Value & json) :
 {
 }
 
-void PVRFreeboxData::ProcessTimers ()
+void Freebox::ProcessTimers ()
 {
   m_timers.clear ();
 
@@ -1154,7 +1154,7 @@ void PVRFreeboxData::ProcessTimers ()
   }
 }
 
-PVR_ERROR PVRFreeboxData::GetTimerTypes (PVR_TIMER_TYPE types [], int * size) const
+PVR_ERROR Freebox::GetTimerTypes (PVR_TIMER_TYPE types [], int * size) const
 {
   if (! size)
     return PVR_ERROR_SERVER_ERROR;
@@ -1233,16 +1233,16 @@ PVR_ERROR PVRFreeboxData::GetTimerTypes (PVR_TIMER_TYPE types [], int * size) co
   return PVR_ERROR_NO_ERROR;
 }
 
-int PVRFreeboxData::GetTimersAmount () const
+int Freebox::GetTimersAmount () const
 {
   P8PLATFORM::CLockObject lock (m_mutex);
   return m_generators.size () + m_timers.size ();
 }
 
-PVR_ERROR PVRFreeboxData::GetTimers (ADDON_HANDLE handle) const
+PVR_ERROR Freebox::GetTimers (ADDON_HANDLE handle) const
 {
   P8PLATFORM::CLockObject lock (m_mutex);
-  //cout << "PVRFreeboxData::GetTimers" << endl;
+  //cout << "Freebox::GetTimers" << endl;
 
   for (auto & [id, g] : m_generators)
   {
@@ -1349,7 +1349,7 @@ inline Document freebox_generator_request (const PVR_TIMER & timer)
   return d;
 }
 
-PVR_ERROR PVRFreeboxData::AddTimer (const PVR_TIMER & timer)
+PVR_ERROR Freebox::AddTimer (const PVR_TIMER & timer)
 {
   StartSession ();
 
@@ -1457,7 +1457,7 @@ PVR_ERROR PVRFreeboxData::AddTimer (const PVR_TIMER & timer)
   return PVR_ERROR_NO_ERROR;
 }
 
-PVR_ERROR PVRFreeboxData::UpdateTimer (const PVR_TIMER & timer)
+PVR_ERROR Freebox::UpdateTimer (const PVR_TIMER & timer)
 {
   StartSession ();
 
@@ -1572,7 +1572,7 @@ PVR_ERROR PVRFreeboxData::UpdateTimer (const PVR_TIMER & timer)
   return PVR_ERROR_NO_ERROR;
 }
 
-PVR_ERROR PVRFreeboxData::DeleteTimer (const PVR_TIMER & timer, bool force)
+PVR_ERROR Freebox::DeleteTimer (const PVR_TIMER & timer, bool force)
 {
   StartSession ();
 

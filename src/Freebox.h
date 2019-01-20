@@ -62,7 +62,7 @@ class Index
     }
 };
 
-class PVRFreeboxData :
+class Freebox :
   public P8PLATFORM::CThread
 {
   protected:
@@ -254,8 +254,8 @@ class PVRFreeboxData :
     };
 
   public:
-    PVRFreeboxData (const std::string & path, int quality, int days, bool extended, int delay);
-    virtual ~PVRFreeboxData ();
+    Freebox (const std::string & path, int quality, int days, bool extended, int delay);
+    virtual ~Freebox ();
 
     // Freebox Server.
     std::string GetServer () const;
@@ -355,7 +355,7 @@ class PVRFreeboxData :
     // Freebox OS //////////////////////////////////////////////////////////////
     std::string m_app_token;
     int m_track_id;
-    mutable std::string m_session_token;
+    std::string m_session_token;
     // TV //////////////////////////////////////////////////////////////////////
     std::map<unsigned int, Channel> m_tv_channels;
     enum Quality m_tv_quality;
@@ -373,12 +373,12 @@ class PVRFreeboxData :
     std::map<int, Timer> m_timers;
 };
 
-template <> inline bool        PVRFreeboxData::JSON<bool>        (const rapidjson::Value & json) {return json.GetBool   ();}
-template <> inline int         PVRFreeboxData::JSON<int>         (const rapidjson::Value & json) {return json.GetInt    ();}
-template <> inline std::string PVRFreeboxData::JSON<std::string> (const rapidjson::Value & json) {return json.GetString ();}
+template <> inline bool        Freebox::JSON<bool>        (const rapidjson::Value & json) {return json.GetBool   ();}
+template <> inline int         Freebox::JSON<int>         (const rapidjson::Value & json) {return json.GetInt    ();}
+template <> inline std::string Freebox::JSON<std::string> (const rapidjson::Value & json) {return json.GetString ();}
 
 template <typename T>
-T PVRFreeboxData::JSON (const rapidjson::Value & json, const char * name, const T & value)
+T Freebox::JSON (const rapidjson::Value & json, const char * name, const T & value)
 {
   auto f = json.FindMember (name);
   return f != json.MemberEnd () ? JSON<T> (f->value) : value;
