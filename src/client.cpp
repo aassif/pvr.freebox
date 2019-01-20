@@ -82,19 +82,14 @@ ADDON_STATUS ADDON_Create (void * callbacks, void * properties)
 
   XBMC->Log (LOG_DEBUG, "%s - Creating the Freebox TV add-on", __FUNCTION__);
 
-  status        = ADDON_STATUS_UNKNOWN;
-//  g_strUserPath   = p->strUserPath;
-//  g_strClientPath = p->strClientPath;
+  status = ADDON_STATUS_UNKNOWN;
 
-/*
-  if (! XBMC->DirectoryExists (g_strUserPath.c_str ()))
-  {
-    XBMC->CreateDirectory (g_strUserPath.c_str ());
-  }
-*/
+  if (! XBMC->DirectoryExists (p->strUserPath))
+    XBMC->CreateDirectory (p->strUserPath);
+
   ADDON_ReadSettings ();
 
-  data   = new PVRFreeboxData (p->strClientPath, quality, p->iEpgMaxDays, extended, delay);
+  data   = new PVRFreeboxData (p->strUserPath, quality, p->iEpgMaxDays, extended, delay);
   status = ADDON_STATUS_OK;
   init   = true;
 
@@ -153,9 +148,11 @@ PVR_ERROR GetAddonCapabilities (PVR_ADDON_CAPABILITIES * caps)
   caps->bSupportsTV                       = true;
   caps->bSupportsRadio                    = false;
   caps->bSupportsChannelGroups            = false;
-  caps->bSupportsRecordings               = false;
-  caps->bSupportsRecordingsRename         = false;
+  caps->bSupportsRecordings               = true;
+  caps->bSupportsRecordingsRename         = true;
+  caps->bSupportsRecordingsUndelete       = false;
   caps->bSupportsRecordingsLifetimeChange = false;
+  caps->bSupportsTimers                   = true;
   caps->bSupportsDescrambleInfo           = false;
   caps->bSupportsAsyncEPGTransfer         = true;
 
@@ -164,17 +161,17 @@ PVR_ERROR GetAddonCapabilities (PVR_ADDON_CAPABILITIES * caps)
 
 const char * GetBackendName ()
 {
-  return "Freebox TV";
+  return PVR_FREEBOX_BACKEND_NAME;
 }
 
 const char * GetBackendVersion ()
 {
-  return "1.0a";
+  return PVR_FREEBOX_BACKEND_VERSION;
 }
 
 const char * GetConnectionString ()
 {
-  return "1.0a";
+  return PVR_FREEBOX_CONNECTION_STRING;
 }
 
 const char * GetBackendHostname ()
@@ -204,50 +201,87 @@ PVR_ERROR GetEPGForChannel (ADDON_HANDLE handle, const PVR_CHANNEL & channel, ti
 
 int GetChannelsAmount ()
 {
-  if (data)
-    return data->GetChannelsAmount ();
-
-  return -1;
+  return data ? data->GetChannelsAmount () : -1;
 }
 
 PVR_ERROR GetChannels (ADDON_HANDLE handle, bool radio)
 {
-  if (data)
-    return data->GetChannels (handle, radio);
-
-  return PVR_ERROR_SERVER_ERROR;
+  return data ? data->GetChannels (handle, radio) : PVR_ERROR_SERVER_ERROR;
 }
 
 PVR_ERROR GetChannelStreamProperties (const PVR_CHANNEL * channel, PVR_NAMED_VALUE * properties, unsigned int * count)
 {
-  if (data)
-    return data->GetChannelStreamProperties (channel, properties, count);
-
-  return PVR_ERROR_SERVER_ERROR;
+  return data ? data->GetChannelStreamProperties (channel, properties, count) : PVR_ERROR_SERVER_ERROR;
 }
 
 int GetChannelGroupsAmount ()
 {
-  if (data)
-    return data->GetChannelGroupsAmount ();
-
-  return -1;
+  return data ? data->GetChannelGroupsAmount () : -1;
 }
 
 PVR_ERROR GetChannelGroups (ADDON_HANDLE handle, bool radio)
 {
-  if (data)
-    return data->GetChannelGroups (handle, radio);
-
-  return PVR_ERROR_SERVER_ERROR;
+  return data ? data->GetChannelGroups (handle, radio) : PVR_ERROR_SERVER_ERROR;
 }
 
 PVR_ERROR GetChannelGroupMembers (ADDON_HANDLE handle, const PVR_CHANNEL_GROUP & group)
 {
-  if (data)
-    return data->GetChannelGroupMembers (handle, group);
+  return data ? data->GetChannelGroupMembers (handle, group) : PVR_ERROR_SERVER_ERROR;
+}
 
-  return PVR_ERROR_SERVER_ERROR;
+int GetRecordingsAmount (bool deleted)
+{
+  return data ? data->GetRecordingsAmount (deleted) : -1;
+}
+
+PVR_ERROR GetRecordings (ADDON_HANDLE handle, bool deleted)
+{
+  return data ? data->GetRecordings (handle, deleted) : PVR_ERROR_SERVER_ERROR;
+}
+
+PVR_ERROR GetRecordingStreamProperties (const PVR_RECORDING * recording, PVR_NAMED_VALUE * properties, unsigned int * count)
+{
+  return data ? data->GetRecordingStreamProperties (recording, properties, count) : PVR_ERROR_SERVER_ERROR;
+}
+
+PVR_ERROR RenameRecording (const PVR_RECORDING & recording)
+{
+  return data ? data->RenameRecording (recording) : PVR_ERROR_SERVER_ERROR;
+}
+
+PVR_ERROR DeleteRecording (const PVR_RECORDING & recording)
+{
+  return data ? data->DeleteRecording (recording) : PVR_ERROR_SERVER_ERROR;
+}
+
+int GetTimersAmount ()
+{
+  return data ? data->GetTimersAmount () : -1;
+}
+
+PVR_ERROR GetTimers (ADDON_HANDLE handle)
+{
+  return data ? data->GetTimers (handle) : PVR_ERROR_SERVER_ERROR;
+}
+
+PVR_ERROR GetTimerTypes (PVR_TIMER_TYPE types [], int * size)
+{
+  return data ? data->GetTimerTypes (types, size) : PVR_ERROR_SERVER_ERROR;
+}
+
+PVR_ERROR AddTimer (const PVR_TIMER & timer)
+{
+  return data ? data->AddTimer (timer) : PVR_ERROR_SERVER_ERROR;
+}
+
+PVR_ERROR UpdateTimer (const PVR_TIMER & timer)
+{
+  return data ? data->UpdateTimer (timer) : PVR_ERROR_SERVER_ERROR;
+}
+
+PVR_ERROR DeleteTimer (const PVR_TIMER & timer, bool force)
+{
+  return data ? data->DeleteTimer (timer, force) : PVR_ERROR_SERVER_ERROR;
 }
 
 PVR_ERROR GetDriveSpace (long long *, long long *) {return PVR_ERROR_NOT_IMPLEMENTED;}
@@ -255,9 +289,6 @@ PVR_ERROR SignalStatus (PVR_SIGNAL_STATUS &) {return PVR_ERROR_NOT_IMPLEMENTED;}
 
 /** UNUSED API FUNCTIONS */
 bool CanPauseStream () {return false;}
-int GetRecordingsAmount (bool) {return -1;}
-PVR_ERROR GetRecordings (ADDON_HANDLE, bool) {return PVR_ERROR_NOT_IMPLEMENTED;}
-PVR_ERROR GetRecordingStreamProperties (const PVR_RECORDING *, PVR_NAMED_VALUE *, unsigned int *) {return PVR_ERROR_NOT_IMPLEMENTED;}
 PVR_ERROR OpenDialogChannelScan () {return PVR_ERROR_NOT_IMPLEMENTED;}
 PVR_ERROR CallMenuHook (const PVR_MENUHOOK &, const PVR_MENUHOOK_DATA &) {return PVR_ERROR_NOT_IMPLEMENTED;}
 PVR_ERROR DeleteChannel (const PVR_CHANNEL &) {return PVR_ERROR_NOT_IMPLEMENTED;}
@@ -276,18 +307,10 @@ void DemuxFlush () {}
 int ReadLiveStream (unsigned char *, unsigned int) {return 0;}
 long long SeekLiveStream (long long, int) {return -1;}
 long long LengthLiveStream () {return -1;}
-PVR_ERROR DeleteRecording (const PVR_RECORDING &) {return PVR_ERROR_NOT_IMPLEMENTED;}
-PVR_ERROR RenameRecording (const PVR_RECORDING &) {return PVR_ERROR_NOT_IMPLEMENTED;}
 PVR_ERROR SetRecordingPlayCount (const PVR_RECORDING &, int) {return PVR_ERROR_NOT_IMPLEMENTED;}
 PVR_ERROR SetRecordingLastPlayedPosition (const PVR_RECORDING &, int) {return PVR_ERROR_NOT_IMPLEMENTED;}
 int GetRecordingLastPlayedPosition (const PVR_RECORDING &) {return -1;}
 PVR_ERROR GetRecordingEdl (const PVR_RECORDING &, PVR_EDL_ENTRY [], int *) {return PVR_ERROR_NOT_IMPLEMENTED;};
-PVR_ERROR GetTimerTypes (PVR_TIMER_TYPE [], int *) {return PVR_ERROR_NOT_IMPLEMENTED;}
-int GetTimersAmount () {return -1;}
-PVR_ERROR GetTimers (ADDON_HANDLE) {return PVR_ERROR_NOT_IMPLEMENTED;}
-PVR_ERROR AddTimer (const PVR_TIMER &) {return PVR_ERROR_NOT_IMPLEMENTED;}
-PVR_ERROR DeleteTimer (const PVR_TIMER &, bool) {return PVR_ERROR_NOT_IMPLEMENTED;}
-PVR_ERROR UpdateTimer (const PVR_TIMER &) {return PVR_ERROR_NOT_IMPLEMENTED;}
 void DemuxAbort () {}
 DemuxPacket* DemuxRead () {return NULL;}
 bool IsTimeshifting () {return false;}

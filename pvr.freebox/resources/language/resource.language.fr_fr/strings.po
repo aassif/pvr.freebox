@@ -20,6 +20,10 @@ msgctxt "#30000"
 msgid "%d channels loaded"
 msgstr "%d chaînes chargées"
 
+msgctxt "#30001"
+msgid "Authorization required"
+msgstr "Autorisation requise"
+
 msgctxt "#40000"
 msgid "Section 1"
 msgstr "Section 1"
