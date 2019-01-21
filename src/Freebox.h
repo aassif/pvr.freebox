@@ -29,7 +29,7 @@
 #include "p8-platform/threads/threads.h"
 #include "rapidjson/document.h"
 
-#define PVR_FREEBOX_VERSION "2.0a"
+#define PVR_FREEBOX_VERSION "2.0b1"
 
 #define PVR_FREEBOX_BACKEND_NAME "Freebox TV"
 #define PVR_FREEBOX_BACKEND_VERSION PVR_FREEBOX_VERSION

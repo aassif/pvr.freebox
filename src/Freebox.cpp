@@ -34,9 +34,10 @@
 #include "client.h"
 #include "Freebox.h"
 
-#include "curl/curl.h"
 #include "openssl/sha.h"
 #include "openssl/hmac.h"
+#include "openssl/bio.h"
+#include "openssl/buffer.h"
 #include "rapidjson/writer.h"
 #include "rapidjson/stringbuffer.h"
 #include "rapidjson/ostreamwrapper.h"
@@ -61,42 +62,56 @@ void freebox_debug (const Value & data)
   cout << endl;
 }
 
-size_t freebox_http_write (char * ptr, size_t size, size_t nmemb, void * userdata)
+inline
+string freebox_base64 (const char * buffer, unsigned int length)
 {
-  size_t realsize = size * nmemb;
-  ((string *) userdata)->append (ptr, realsize);
-  return realsize;
+	BIO * b64 = BIO_new (BIO_f_base64 ());
+	BIO * mem = BIO_new (BIO_s_mem ());
+	BIO * bio = BIO_push (b64, mem);
+
+	BIO_set_flags (bio, BIO_FLAGS_BASE64_NO_NL);
+
+  BIO_write (bio, buffer, length);
+	BIO_flush (bio);
+
+	BUF_MEM * b;
+	BIO_get_mem_ptr (bio, &b);
+  string r (b->data, b->length);
+
+	BIO_free_all (bio);
+
+	return r;
 }
 
 long freebox_http (const string & custom, const string & url, const string & request, string * response, const string & session)
 {
-  CURL * curl = curl_easy_init ();
   // URL.
-  curl_easy_setopt (curl, CURLOPT_URL, url.c_str ());
+  void * f = XBMC->CURLCreate (url.c_str ());
   // Custom request.
-  curl_easy_setopt (curl, CURLOPT_CUSTOMREQUEST, custom.c_str ());
-  // Response handler.
-  curl_easy_setopt (curl, CURLOPT_WRITEDATA, response);
-  curl_easy_setopt (curl, CURLOPT_WRITEFUNCTION, freebox_http_write);
+  XBMC->CURLAddOption (f, XFILE::CURL_OPTION_PROTOCOL, "customrequest", custom.c_str ());
   // Header.
-  string header = "X-Fbx-App-Auth: " + session;
-  struct curl_slist * chunk = curl_slist_append (NULL, header.c_str ());
-  curl_easy_setopt (curl, CURLOPT_HTTPHEADER, chunk);
+  if (! session.empty ())
+    XBMC->CURLAddOption (f, XFILE::CURL_OPTION_HEADER, "X-Fbx-App-Auth", session.c_str ());
   // POST?
   if (! request.empty ())
   {
-    curl_easy_setopt (curl, CURLOPT_POST, 1);
-    curl_easy_setopt (curl, CURLOPT_POSTFIELDS, request.c_str ());
+    string base64 = freebox_base64 (request.c_str (), request.length ());
+    XBMC->CURLAddOption (f, XFILE::CURL_OPTION_PROTOCOL, "postdata", base64.c_str ());
   }
   // Perform HTTP query.
-  curl_easy_perform (curl);
+  if (! XBMC->CURLOpen (f, XFILE::READ_NO_CACHE))
+    return -1;
+  // Read HTTP response.
+  char buffer [1024];
+  while (int size = XBMC->ReadFile (f, buffer, 1024))
+    response->append (buffer, size);
   // HTTP status code.
-  long http = 0;
-  curl_easy_getinfo (curl, CURLINFO_RESPONSE_CODE, &http);
+  string header = XBMC->GetFilePropertyValue (f, XFILE::FILE_PROPERTY_RESPONSE_PROTOCOL, "");
+  istringstream iss (header); string protocol; int status;
+  if (! (iss >> protocol >> status >> ws)) return -1;
   // Cleanup.
-  curl_easy_cleanup (curl);
-  curl_slist_free_all (chunk);
-  return http;
+  XBMC->CloseFile (f);
+  return status;
 }
 
 /* static */
@@ -288,7 +303,7 @@ bool Freebox::StartSession ()
     }
   }
 
-  return false;
+  return true;
 }
 
 bool Freebox::CloseSession ()
@@ -299,7 +314,7 @@ bool Freebox::CloseSession ()
     return POST ("/api/v6/login/logout/", Document (), &response, kNullType);
   }
 
-  return false;
+  return true;
 }
 
 class Conflict
@@ -638,13 +653,8 @@ Freebox::Freebox (const string & path,
   m_generators (),
   m_timers ()
 {
-  curl_global_init (CURL_GLOBAL_ALL);
   SetDays (days);
   ProcessChannels ();
-  StartSession ();
-  ProcessGenerators ();
-  ProcessTimers ();
-  ProcessRecordings ();
   CreateThread (false);
 }
 
@@ -652,7 +662,6 @@ Freebox::~Freebox ()
 {
   StopThread ();
   CloseSession ();
-  curl_global_cleanup ();
 }
 
 string Freebox::GetServer () const
@@ -814,6 +823,14 @@ void * Freebox::Process ()
     time_t end   = now + days * 24 * 60 * 60;
     time_t last  = max (now, m_epg_last);
     m_mutex.Unlock ();
+
+    if (StartSession ())
+    {
+      P8PLATFORM::CLockObject lock (m_mutex);
+      ProcessGenerators ();
+      ProcessTimers ();
+      ProcessRecordings ();
+    }
 
     for (time_t t = last - (last % 3600); t < end; t += 3600)
     {
