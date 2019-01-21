@@ -77,10 +77,13 @@ class Freebox :
     }
 
     // Authorization status.
-    enum Status {UNKNOWN = 0, PENDING = 1, TIMEOUT = 2, GRANTED = 3, DENIED = 5};
+    enum class Status {UNKNOWN = 0, PENDING = 1, TIMEOUT = 2, GRANTED = 3, DENIED = 5};
+
+    // Channel source.
+    enum class Source {DEFAULT = 0, AUTO = 1, IPTV = 2, DVB = 3};
 
     // Channel quality.
-    enum Quality {DEFAULT = 0, AUTO = 1, HD = 2, SD = 3, LD = 4, STEREO = 5};
+    enum class Quality {DEFAULT = 0, AUTO = 1, HD = 2, SD = 3, LD = 4, STEREO = 5};
 
     class Stream
     {
@@ -260,6 +263,8 @@ class Freebox :
     // Freebox Server.
     std::string GetServer () const;
 
+    // Source setting.
+    void SetSource (int);
     // Quality setting.
     void SetQuality (int);
     // MaxDays setting.
@@ -358,6 +363,7 @@ class Freebox :
     std::string m_session_token;
     // TV //////////////////////////////////////////////////////////////////////
     std::map<unsigned int, Channel> m_tv_channels;
+    enum Source  m_tv_source;
     enum Quality m_tv_quality;
     // EPG /////////////////////////////////////////////////////////////////////
     std::queue<Query> m_epg_queries;

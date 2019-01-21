@@ -29,54 +29,90 @@ msgid "Section 1"
 msgstr "Section 1"
 
 msgctxt "#41000"
-msgid "Television"
-msgstr "Télévision"
+msgid "General"
+msgstr "Général"
 
 msgctxt "#41100"
-msgid "Television 1"
-msgstr "Télévision 1"
+msgid "General"
+msgstr "Général"
 
 msgctxt "#41110"
-msgid "Quality"
-msgstr "Qualité"
-
-msgctxt "#41111"
-msgid "Auto"
-msgstr "Auto"
-
-msgctxt "#41112"
-msgid "High"
-msgstr "Haute"
-
-msgctxt "#41113"
-msgid "Standard"
-msgstr "Standard"
-
-msgctxt "#41114"
-msgid "Low"
-msgstr "Basse"
-
-msgctxt "#42000"
-msgid "EPG"
-msgstr "Guide TV"
-
-msgctxt "#42100"
-msgid "EPG 1"
-msgstr "EPG 1"
-
-msgctxt "#42110"
-msgid "Extended"
-msgstr "Étendu"
-
-msgctxt "#42120"
 msgid "Delay"
 msgstr "Délai"
 
-msgctxt "#142110"
-msgid "Extended EPG."
-msgstr "Guide TV étendu (résumé)."
-
-msgctxt "#142120"
+msgctxt "#41111"
 msgid "Delay between queries."
 msgstr "Délai entre chaque requête."
+
+msgctxt "#41120"
+msgid "Restart"
+msgstr "Redémarrer"
+
+msgctxt "#41121"
+msgid "Restart"
+msgstr "Redémarrer"
+
+msgctxt "#41200"
+msgid "Television"
+msgstr "Télévision"
+
+msgctxt "#41210"
+msgid "Source"
+msgstr "Source"
+
+msgctxt "#41211"
+msgid "Source"
+msgstr "Source du flux TV : auto, IPTV ou TNT."
+
+msgctxt "#41212"
+msgid "Auto"
+msgstr "Auto"
+
+msgctxt "#41213"
+msgid "IPTV"
+msgstr "IPTV"
+
+msgctxt "#41214"
+msgid "DVB"
+msgstr "TNT"
+
+msgctxt "#41220"
+msgid "Quality"
+msgstr "Qualité"
+
+msgctxt "#41221"
+msgid "Quality"
+msgstr "Qualité du flux TV : auto, haute, standard, basse ou 3D."
+
+msgctxt "#41222"
+msgid "Auto"
+msgstr "Auto"
+
+msgctxt "#41223"
+msgid "High"
+msgstr "Haute"
+
+msgctxt "#41224"
+msgid "Standard"
+msgstr "Standard"
+
+msgctxt "#41225"
+msgid "Low"
+msgstr "Basse"
+
+msgctxt "#41226"
+msgid "3D"
+msgstr "3D"
+
+msgctxt "#41300"
+msgid "EPG"
+msgstr "Guide TV"
+
+msgctxt "#41310"
+msgid "Extended"
+msgstr "Étendu"
+
+msgctxt "#41311"
+msgid "Extended EPG."
+msgstr "Guide TV étendu (résumé)."
 

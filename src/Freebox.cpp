@@ -54,6 +54,7 @@ using namespace ADDON;
 #define PVR_FREEBOX_GENERATOR_MANUAL 4
 #define PVR_FREEBOX_GENERATOR_EPG    5
 
+inline
 void freebox_debug (const Value & data)
 {
   OStreamWrapper wrapper (cout);
@@ -65,25 +66,26 @@ void freebox_debug (const Value & data)
 inline
 string freebox_base64 (const char * buffer, unsigned int length)
 {
-	BIO * b64 = BIO_new (BIO_f_base64 ());
-	BIO * mem = BIO_new (BIO_s_mem ());
-	BIO * bio = BIO_push (b64, mem);
+  BIO * b64 = BIO_new (BIO_f_base64 ());
+  BIO * mem = BIO_new (BIO_s_mem ());
+  BIO * bio = BIO_push (b64, mem);
 
-	BIO_set_flags (bio, BIO_FLAGS_BASE64_NO_NL);
+  BIO_set_flags (bio, BIO_FLAGS_BASE64_NO_NL);
 
   BIO_write (bio, buffer, length);
-	BIO_flush (bio);
+  BIO_flush (bio);
 
-	BUF_MEM * b;
-	BIO_get_mem_ptr (bio, &b);
+  BUF_MEM * b;
+  BIO_get_mem_ptr (bio, &b);
   string r (b->data, b->length);
 
-	BIO_free_all (bio);
+  BIO_free_all (bio);
 
-	return r;
+  return r;
 }
 
-long freebox_http (const string & custom, const string & url, const string & request, string * response, const string & session)
+inline
+int freebox_http (const string & custom, const string & url, const string & request, string * response, const string & session)
 {
   // URL.
   void * f = XBMC->CURLCreate (url.c_str ());
@@ -117,12 +119,12 @@ long freebox_http (const string & custom, const string & url, const string & req
 /* static */
 enum Freebox::Quality Freebox::ParseQuality (const string & q)
 {
-  if (q == "auto") return AUTO;
-  if (q == "hd")   return HD;
-  if (q == "sd")   return SD;
-  if (q == "ld")   return LD;
-  if (q == "3d")   return STEREO;
-  return DEFAULT;
+  if (q == "auto") return Quality::AUTO;
+  if (q == "hd")   return Quality::HD;
+  if (q == "sd")   return Quality::SD;
+  if (q == "ld")   return Quality::LD;
+  if (q == "3d")   return Quality::STEREO;
+  return Quality::DEFAULT;
 }
 
 /* static */
@@ -393,48 +395,48 @@ int Freebox::Channel::Score (enum Quality q, enum Quality q0)
 {
   switch (q0)
   {
-    case AUTO:
+    case Quality::AUTO:
       switch (q)
       {
-        case AUTO: return 1000;
-        case HD:   return 100;
-        case SD:   return 10;
-        case LD:   return 1;
-        default:   return 0;
+        case Quality::AUTO: return 1000;
+        case Quality::HD:   return 100;
+        case Quality::SD:   return 10;
+        case Quality::LD:   return 1;
+        default:            return 0;
       }
 
-    case HD:
+    case Quality::HD:
       switch (q)
       {
-        case AUTO: return 100;
-        case HD:   return 1000;
-        case SD:   return 10;
-        case LD:   return 1;
-        default:   return 0;
+        case Quality::AUTO: return 100;
+        case Quality::HD:   return 1000;
+        case Quality::SD:   return 10;
+        case Quality::LD:   return 1;
+        default:            return 0;
       }
 
-    case SD:
+    case Quality::SD:
       switch (q)
       {
-        case AUTO: return 100;
-        case HD:   return 1;
-        case SD:   return 1000;
-        case LD:   return 10;
-        default:   return 0;
+        case Quality::AUTO: return 100;
+        case Quality::HD:   return 1;
+        case Quality::SD:   return 1000;
+        case Quality::LD:   return 10;
+        default:            return 0;
       }
 
-    case LD:
+    case Quality::LD:
       switch (q)
       {
-        case AUTO: return 100;
-        case HD:   return 1;
-        case SD:   return 10;
-        case LD:   return 1000;
-        default:   return 0;
+        case Quality::AUTO: return 100;
+        case Quality::HD:   return 1;
+        case Quality::SD:   return 10;
+        case Quality::LD:   return 1000;
+        default:            return 0;
       }
 
-    case STEREO:
-      return (q == STEREO) ? 1000 : 0;
+    case Quality::STEREO:
+      return (q == Quality::STEREO) ? 1000 : 0;
 
     default:
       return 0;
@@ -674,6 +676,13 @@ string Freebox::GetServer () const
 string Freebox::URL (const string & query) const
 {
   return "http://" + m_server + query;
+}
+
+void Freebox::SetSource (int s)
+{
+  P8PLATFORM::CLockObject lock (m_mutex);
+cout << "source: " << s << endl;
+  m_tv_source = Source (s);
 }
 
 void Freebox::SetQuality (int q)
@@ -1173,10 +1182,7 @@ void Freebox::ProcessTimers ()
 
 PVR_ERROR Freebox::GetTimerTypes (PVR_TIMER_TYPE types [], int * size) const
 {
-  if (! size)
-    return PVR_ERROR_SERVER_ERROR;
-
-  if (*size < 5)
+  if (! size || *size < 5)
     return PVR_ERROR_INVALID_PARAMETERS;
 
   const unsigned int ATTRIBS =
@@ -1458,7 +1464,6 @@ PVR_ERROR Freebox::AddTimer (const PVR_TIMER & timer)
       // Reload timers.
       ProcessTimers ();
       // Reload recordings.
-      // FIXME: only if there's an active generated timer.
       ProcessRecordings ();
 
       break;
@@ -1640,25 +1645,16 @@ PVR_ERROR Freebox::DeleteTimer (const PVR_TIMER & timer, bool force)
       if (! DELETE ("/api/v6/pvr/generator/" + to_string (id), &response))
         return PVR_ERROR_SERVER_ERROR;
 
-      // Update recordings?
-      bool r = false;
-
       // Delete generated timers (locally).
       for (auto i = m_timers.begin (); i != m_timers.end ();)
         if (i->second.record_gen_id == id)
-        {
-          r = true;
           i = m_timers.erase (i);
-        }
         else
           ++i;
 
       // Delete generator (locally).
       m_generators.erase (i);
       PVR->TriggerTimerUpdate ();
-
-      // Update recordings.
-      if (r) ProcessRecordings ();
 
       break;
     }

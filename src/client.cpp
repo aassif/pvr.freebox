@@ -37,9 +37,10 @@ using namespace ADDON;
 #endif
 
 std::string  path;
+int          delay    = 0;
+int          source   = 1;
 int          quality  = 1;
 bool         extended = false;
-int          delay    = 0;
 bool         init     = false;
 ADDON_STATUS status   = ADDON_STATUS_UNKNOWN;
 Freebox    * data     = nullptr;
@@ -51,9 +52,10 @@ extern "C" {
 
 void ADDON_ReadSettings ()
 {
+  if (! XBMC->GetSetting ("delay",    &delay))    delay    = 0;
+  if (! XBMC->GetSetting ("source",   &source))   source   = 1;
   if (! XBMC->GetSetting ("quality",  &quality))  quality  = 1;
   if (! XBMC->GetSetting ("extended", &extended)) extended = false;
-  if (! XBMC->GetSetting ("delay",    &delay))    delay    = 0;
 }
 
 ADDON_STATUS ADDON_Create (void * callbacks, void * properties)
@@ -112,11 +114,23 @@ ADDON_STATUS ADDON_SetSetting (const char * name, const void * value)
 {
   if (data)
   {
+    if (std::string (name) == "delay")
+      data->SetDelay (*((int *) value));
+
+    if (std::string (name) == "restart")
+    {
+      bool restart = *((const char *) value);
+      return restart ? ADDON_STATUS_NEED_RESTART : ADDON_STATUS_OK;
+    }
+
+    if (std::string (name) == "source")
+      data->SetSource (*((int *) value));
+
     if (std::string (name) == "quality")
       data->SetQuality (*((int *) value));
 
-    if (std::string (name) == "delay")
-      data->SetDelay (*((int *) value));
+    if (std::string (name) == "extended")
+      data->SetExtended (*((bool *) value));
   }
 
   return ADDON_STATUS_OK;
