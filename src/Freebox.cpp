@@ -138,19 +138,16 @@ bool Freebox::HTTP (const string & custom,
   string session = m_session_token;
   lock.Unlock ();
 
-  cout << custom << ' ' << url << endl;
-
   StringBuffer buffer;
   if (! request.IsNull ())
   {
     Writer<StringBuffer> writer (buffer);
     request.Accept (writer);
-    cout << buffer.GetString () << endl;
   }
 
   string response;
   long http = freebox_http (custom, url, buffer.GetString (), &response, session);
-  if (custom != "GET") cout << response << endl;
+  XBMC->Log (LOG_DEBUG, "%s %s: %s", custom.c_str (), url.c_str (), response.c_str ());
 
   doc->Parse (response);
 
@@ -268,7 +265,6 @@ bool Freebox::StartSession ()
   if (! GET ("/api/v6/login/", &login))
     return false;
 
-  freebox_debug (login);
   if (! login["result"]["logged_in"].GetBool ())
   {
     Document d;
@@ -505,6 +501,39 @@ PVR_ERROR Freebox::Channel::GetStreamProperties (enum Quality q, PVR_NAMED_VALUE
   return PVR_ERROR_NO_ERROR;
 }
 
+int Freebox::Event::Category (int c)
+{
+  switch (c)
+  {
+    case  0: return 0x0 <<4| 0x0;
+    case  1: return 0x1 <<4| 0x0; // Film
+    case  2: return 0x1 <<4| 0x0; // Téléfilm
+    case  3: return 0x1 <<4| 0x0; // Série/Feuilleton
+    case  4: return 0x1 <<4| 0x5; // Feuilleton
+    case  5: return 0x2 <<4| 0x3; // Documentaire
+    case  6: return 0x7 <<4| 0x0; // Théâtre
+    case  7: return 0x6 <<4| 0x5; // Opéra
+    case  8: return 0x0 <<4| 0x0;
+    case  9: return 0x3 <<4| 0x2; // Variétés
+    case 10: return 0x8 <<4| 0x1; // Magazine
+    case 11: return 0x5 <<4| 0x0; // Jeunesse
+    case 12: return 0x3 <<4| 0x1; // Jeu
+    case 13: return 0x6 <<4| 0x0; // Musique
+    case 14: return 0x3 <<4| 0x0; // Divertissement
+    case 15: return 0x0 <<4| 0x0;
+    case 16: return 0x5 <<4| 0x5; // Dessin animé
+    case 17: return 0x0 <<4| 0x0;
+    case 18: return 0x0 <<4| 0x0;
+    case 19: return 0x4 <<4| 0x0; // Sport
+    case 20: return 0x2 <<4| 0x1; // Journal
+    case 21: return 0x0 <<4| 0x0;
+    case 22: return 0x2 <<4| 0x4; // Débat
+    case 23: return 0x0 <<4| 0x0;
+    case 24: return 0x7 <<4| 0x0; // Spectacle
+    default: return 0;
+  };
+}
+
 Freebox::Event::Event (const Value & e, unsigned int channel, time_t date) :
   channel  (channel),
   uuid     (JSON<string> (e, "id")),
@@ -515,7 +544,7 @@ Freebox::Event::Event (const Value & e, unsigned int channel, time_t date) :
   season   (JSON<int>    (e, "season_number")),
   episode  (JSON<int>    (e, "episode_number")),
   picture  (JSON<string> (e, "picture")),
-  category (JSON<string> (e, "category_name")),
+  category (JSON<int>    (e, "category")),
   plot     (JSON<string> (e, "desc")),
   outline  (JSON<string> (e, "short_desc"))
 {
@@ -712,10 +741,15 @@ void Freebox::SetDelay (int d)
 void Freebox::ProcessEvent (const Event & e, EPG_EVENT_STATE state)
 {
 #if 0
-  cout << e.uuid << " : " << e.title << ' ' << e.date << '+' << e.duration << " (" << e.channel << ')' << endl;
+  cout << e.uuid << " : " << '"' << e.title << '"' << ' ' << e.date << '+' << e.duration << " (" << e.channel << ')' << endl;
   cout << "  " << e.category << ' ' << e.season << 'x' << e.episode << ' ' << '"' << e.subtitle << '"' << ' ' << '[' << e.picture << ']' << endl;
-  cout << "  " << '"' << e.outline << '"' << ' ' << '"' << e.plot << '"' << endl;
+  cout << "  " << '"' << e.outline << '"' << endl;
+  cout << "  " << '"' << e.plot << '"' << endl;
 #endif
+
+  // SHOULDN'T HAPPEN!
+  if (e.uuid.find ("pluri_") != 0)
+    XBMC->Log (LOG_ERROR, "%s : \"%s\" %d+%d", e.uuid.c_str (), e.title.c_str (), e.date, e.duration);
 
   string picture = e.picture;
   {
@@ -740,9 +774,10 @@ void Freebox::ProcessEvent (const Event & e, EPG_EVENT_STATE state)
   tag.iYear               = 0;
   tag.strIMDBNumber       = NULL;
   tag.strIconPath         = PVR_FREEBOX_C_STR (picture);
-#if 0 // categories mismatch! lookup table?
-  tag.iGenreType          = category & 0xF0;
-  tag.iGenreSubType       = category & 0x0F;
+#if 1
+  int c = Event::Category (e.category);
+  tag.iGenreType          = c & 0xF0;
+  tag.iGenreSubType       = c & 0x0F;
   tag.strGenreDescription = NULL;
 #else
   tag.iGenreType          = EPG_GENRE_USE_STRING;
@@ -777,7 +812,7 @@ void Freebox::ProcessEvent (const Value & event, unsigned int channel, time_t da
     if (m_epg_extended)
     {
       string query = "/api/v6/tv/epg/programs/" + e.uuid;
-      m_epg_queries.push (Query (EVENT, query, channel, date));
+      m_epg_queries.emplace (EVENT, query, channel, date);
     }
   }
 
@@ -847,7 +882,7 @@ void * Freebox::Process ()
       string query = "/api/v6/tv/epg/by_time/" + epoch;
       {
         P8PLATFORM::CLockObject lock (m_mutex);
-        m_epg_queries.push (Query (FULL, query));
+        m_epg_queries.emplace (FULL, query);
         //XBMC->Log (LOG_INFO, "Queued: '%s' %d < %d", query.c_str (), t, end);
         m_epg_last = t + 3600;
       }

@@ -154,6 +154,9 @@ class Freebox :
     class Event
     {
       public:
+        static int Category (int);
+
+      public:
         unsigned int channel;
         std::string  uuid;
         time_t       date;
@@ -162,7 +165,7 @@ class Freebox :
         std::string  subtitle;
         int          season;
         int          episode;
-        std::string  category;
+        int          category;
         std::string  picture;
         std::string  plot;
         std::string  outline;
