@@ -210,6 +210,8 @@ class Freebox :
       public:
         int          id;
       //std::string  type;
+        std::string  media;
+        std::string  path;
         std::string  name;
       //std::string  subname;
         std::string  channel_uuid;
@@ -217,8 +219,6 @@ class Freebox :
       //std::string  channel_quality;
       //bool         channel_strict;
       //std::string  broadcast_type;
-        std::string  media;
-        std::string  path;
         unsigned int start_hour;
         unsigned int start_min;
       //unsigned int start_sec;

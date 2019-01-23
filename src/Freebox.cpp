@@ -349,7 +349,7 @@ inline string StrUUIDs (const vector<Conflict> & v)
   if (! v.empty ())
   {
     text += v[0].uuid;
-    for (int i = 1; i < v.size (); ++i)
+    for (size_t i = 1; i < v.size (); ++i)
       text += ", " + v[i].uuid;
   }
   return '[' + text + ']';
@@ -374,7 +374,7 @@ inline string StrNumbers (const vector<Conflict> & v)
 
     default:
       text = StrNumber (v[0], true);
-      for (int i = 1; i < v.size (); ++i)
+      for (size_t i = 1; i < v.size (); ++i)
         text += ", " + StrNumber (v[i], true);
       break;
   }
@@ -482,7 +482,7 @@ PVR_ERROR Freebox::Channel::GetStreamProperties (enum Quality q, PVR_NAMED_VALUE
     int index = 0;
     int score = Score (streams[0].quality, q);
 
-    for (int i = 1; i < streams.size (); ++i)
+    for (size_t i = 1; i < streams.size (); ++i)
     {
       int s = Score (streams[i].quality, q);
       if (s > score)
@@ -552,8 +552,8 @@ Freebox::Event::Event (const Value & e, unsigned int channel, time_t date) :
   subtitle (JSON<string> (e, "sub_title")),
   season   (JSON<int>    (e, "season_number")),
   episode  (JSON<int>    (e, "episode_number")),
-  picture  (JSON<string> (e, "picture_big", JSON<string> (e, "picture"))),
   category (JSON<int>    (e, "category")),
+  picture  (JSON<string> (e, "picture_big", JSON<string> (e, "picture"))),
   plot     (JSON<string> (e, "desc")),
   outline  (JSON<string> (e, "short_desc")),
   year     (JSON<int>    (e, "year")),
@@ -641,7 +641,7 @@ bool Freebox::ProcessChannels ()
   {
     sort (v1.begin (), v1.end (), comparator);
 
-    for (int j = 1; j < v1.size (); ++j)
+    for (size_t j = 1; j < v1.size (); ++j)
     {
       Conflicts & v2 = conflicts_by_uuid [v1[j].uuid];
       v2.erase (remove_if (v2.begin (), v2.end (),
@@ -657,7 +657,7 @@ bool Freebox::ProcessChannels ()
     {
       sort (v1.begin (), v1.end (), comparator);
 
-      for (int j = 1; j < v1.size (); ++j)
+      for (size_t j = 1; j < v1.size (); ++j)
       {
         Conflicts & v2 = conflicts_by_major [v1[j].major];
         v2.erase (remove_if (v2.begin (), v2.end (),
@@ -714,13 +714,14 @@ Freebox::Freebox (const string & path,
                   int days,
                   bool extended,
                   int delay) :
-  m_app_token (),
-  m_track_id (),
-  m_session_token (),
   m_path (path),
   m_server ("mafreebox.freebox.fr"),
   m_delay (delay),
+  m_app_token (),
+  m_track_id (),
+  m_session_token (),
   m_tv_channels (),
+  m_tv_source (Source::AUTO),
   m_tv_quality (Quality (quality)),
   m_epg_queries (),
   m_epg_cache (),
@@ -1189,15 +1190,16 @@ Freebox::Generator::Generator (const Value & json) :
   path             (JSON<string> (json, "path")),
   name             (JSON<string> (json, "name")),
 //subname          (JSON<string> (json, "name")),
+  channel_uuid     (JSON<string> (json["params"], "channel_uuid")),
+//channel_type     (JSON<string> (json["params"], "channel_type")),
+//channel_quality  (JSON<string> (json["params"], "channel_quality")),
+//channel_strict   (JSON<bool>   (json["params"], "channel_strict"))
+//broadcast_type   (JSON<bool>   (json["params"], "broadcast_type"))
   start_hour       (JSON<int>    (json["params"], "start_hour")),
   start_min        (JSON<int>    (json["params"], "start_min")),
   duration         (JSON<int>    (json["params"], "duration")),
   margin_before    (JSON<int>    (json["params"], "margin_before")),
   margin_after     (JSON<int>    (json["params"], "margin_after")),
-  channel_uuid     (JSON<string> (json["params"], "channel_uuid")),
-//channel_quality  (JSON<string> (json["params"], "channel_quality")),
-//channel_type     (JSON<string> (json["params"], "channel_type")),
-//channel_strict   (JSON<bool>   (json["params"], "channel_strict"))
   repeat_monday    (JSON<bool>   (json["params"]["repeat_days"], "monday")),
   repeat_tuesday   (JSON<bool>   (json["params"]["repeat_days"], "tuesday")),
   repeat_wednesday (JSON<bool>   (json["params"]["repeat_days"], "wednesday")),
@@ -1533,9 +1535,6 @@ PVR_ERROR Freebox::AddTimer (const PVR_TIMER & timer)
     case PVR_FREEBOX_GENERATOR_EPG :
     {
       //cout << "AddTimer: GENERATOR[" << type << ']' << endl;
-
-      tm  date     = *localtime (&timer.startTime);
-      int duration = timer.endTime - timer.startTime;
 
       // Payload.
       Document d = freebox_generator_request (timer);
