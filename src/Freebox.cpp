@@ -27,6 +27,7 @@
 #include <sstream>
 #include <fstream>
 #include <algorithm>
+#include <numeric> // accumulate
 #include <filesystem>
 
 #include "p8-platform/util/StringUtils.h"
@@ -534,6 +535,14 @@ int Freebox::Event::Category (int c)
   };
 }
 
+Freebox::Event::CastMember::CastMember (const Value & c) :
+  job        (JSON<string> (c, "job")),
+  first_name (JSON<string> (c, "first_name")),
+  last_name  (JSON<string> (c, "last_name")),
+  role       (JSON<string> (c, "role"))
+{
+}
+
 Freebox::Event::Event (const Value & e, unsigned int channel, time_t date) :
   channel  (channel),
   uuid     (JSON<string> (e, "id")),
@@ -543,11 +552,50 @@ Freebox::Event::Event (const Value & e, unsigned int channel, time_t date) :
   subtitle (JSON<string> (e, "sub_title")),
   season   (JSON<int>    (e, "season_number")),
   episode  (JSON<int>    (e, "episode_number")),
-  picture  (JSON<string> (e, "picture")),
+  picture  (JSON<string> (e, "picture_big", JSON<string> (e, "picture"))),
   category (JSON<int>    (e, "category")),
   plot     (JSON<string> (e, "desc")),
-  outline  (JSON<string> (e, "short_desc"))
+  outline  (JSON<string> (e, "short_desc")),
+  year     (JSON<int>    (e, "year")),
+  cast     ()
 {
+  if (category != 0 && Category (category) == 0)
+  {
+    string name = JSON<string> (e, "category_name");
+    cout << category << " : " << name << endl;
+  }
+
+  auto f = e.FindMember ("cast");
+  if (f != e.MemberEnd ())
+  {
+    const Value & c = f->value;
+    if (c.IsArray ())
+      for (SizeType i = 0; i < c.Size (); ++i)
+        cast.emplace_back (c[i]);
+  }
+}
+
+Freebox::Event::ConcatIf::ConcatIf (const string & job) :
+  m_job (job)
+{
+}
+
+string Freebox::Event::ConcatIf::operator() (const string & input, const Freebox::Event::CastMember & m) const
+{
+  if (m.job != m_job) return input;
+  return (input.empty () ? "" : input + EPG_STRING_TOKEN_SEPARATOR) + (m.first_name + ' ' + m.last_name);
+}
+
+string Freebox::Event::GetCastDirector () const
+{
+  static const ConcatIf CONCAT ("Réalisateur");
+  return accumulate (cast.begin (), cast.end (), string (), CONCAT);
+}
+
+string Freebox::Event::GetCastActors () const
+{
+  static const ConcatIf CONCAT ("Acteur");
+  return accumulate (cast.begin (), cast.end (), string (), CONCAT);
 }
 
 bool Freebox::ProcessChannels ()
@@ -740,22 +788,28 @@ void Freebox::SetDelay (int d)
 
 void Freebox::ProcessEvent (const Event & e, EPG_EVENT_STATE state)
 {
-#if 0
+  // FIXME: SHOULDN'T HAPPEN!
+  if (e.uuid.find ("pluri_") != 0)
+  {
+#if 1
   cout << e.uuid << " : " << '"' << e.title << '"' << ' ' << e.date << '+' << e.duration << " (" << e.channel << ')' << endl;
   cout << "  " << e.category << ' ' << e.season << 'x' << e.episode << ' ' << '"' << e.subtitle << '"' << ' ' << '[' << e.picture << ']' << endl;
   cout << "  " << '"' << e.outline << '"' << endl;
   cout << "  " << '"' << e.plot << '"' << endl;
 #endif
 
-  // SHOULDN'T HAPPEN!
-  if (e.uuid.find ("pluri_") != 0)
     XBMC->Log (LOG_ERROR, "%s : \"%s\" %d+%d", e.uuid.c_str (), e.title.c_str (), e.date, e.duration);
+    return;
+  }
 
   string picture = e.picture;
   {
     P8PLATFORM::CLockObject lock (m_mutex);
     if (! picture.empty ()) picture = URL (picture);
   }
+
+  string actors   = e.GetCastActors   ();
+  string director = e.GetCastDirector ();
 
   EPG_TAG tag;
   memset (&tag, 0, sizeof (EPG_TAG));
@@ -768,10 +822,10 @@ void Freebox::ProcessEvent (const Event & e, EPG_EVENT_STATE state)
   tag.strPlotOutline      = PVR_FREEBOX_C_STR (e.outline);
   tag.strPlot             = PVR_FREEBOX_C_STR (e.plot);
   tag.strOriginalTitle    = NULL;
-  tag.strCast             = NULL;
-  tag.strDirector         = NULL;
+  tag.strCast             = PVR_FREEBOX_C_STR (actors);
+  tag.strDirector         = PVR_FREEBOX_C_STR (director);
   tag.strWriter           = NULL;
-  tag.iYear               = 0;
+  tag.iYear               = e.year;
   tag.strIMDBNumber       = NULL;
   tag.strIconPath         = PVR_FREEBOX_C_STR (picture);
 #if 1

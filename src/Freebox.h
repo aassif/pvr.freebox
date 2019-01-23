@@ -157,6 +157,32 @@ class Freebox :
         static int Category (int);
 
       public:
+        class CastMember
+        {
+          public:
+            std::string job;
+            std::string first_name;
+            std::string last_name;
+            std::string role;
+
+          public:
+            CastMember (const rapidjson::Value &);
+        };
+
+        typedef std::vector<CastMember> Cast;
+
+      protected:
+        class ConcatIf
+        {
+          private:
+            std::string m_job;
+
+          public:
+            ConcatIf (const std::string & job);
+            std::string operator() (const std::string &, const Freebox::Event::CastMember &) const;
+        };
+
+      public:
         unsigned int channel;
         std::string  uuid;
         time_t       date;
@@ -169,9 +195,13 @@ class Freebox :
         std::string  picture;
         std::string  plot;
         std::string  outline;
+        int          year;
+        Cast         cast;
 
       public:
         Event (const rapidjson::Value &, unsigned int channel, time_t date);
+        std::string GetCastDirector () const;
+        std::string GetCastActors   () const;
     };
 
     // Generator.
