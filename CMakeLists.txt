@@ -10,15 +10,17 @@ find_package(Kodi REQUIRED)
 find_package(kodiplatform REQUIRED)
 find_package(p8-platform REQUIRED)
 find_package(OpenSSL REQUIRED)
+find_package(ZLIB REQUIRED)
 find_package(RapidJSON REQUIRED)
 
 include_directories(${kodiplatform_INCLUDE_DIRS}
                     ${p8-platform_INCLUDE_DIRS}
                     ${KODI_INCLUDE_DIR}
-                    ${OpenSSL_INCLUDE_DIRS}
+                    ${OPENSSL_INCLUDE_DIRS}
+                    ${ZLIB_INCLUDE_DIRS}
                     ${RAPIDJSON_INCLUDE_DIRS})
 
-set(DEPLIBS ${p8-platform_LIBRARIES} stdc++fs)
+set(DEPLIBS ${p8-platform_LIBRARIES} ${OPENSSL_LIBRARIES} ${ZLIB_LIBRARIES})
 
 set(FREEBOX_SOURCES src/client.cpp
                     src/Freebox.cpp)

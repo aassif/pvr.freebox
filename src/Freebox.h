@@ -39,6 +39,29 @@
 #define PVR_FREEBOX_APP_NAME "Kodi"
 #define PVR_FREEBOX_APP_VERSION PVR_FREEBOX_VERSION
 
+#ifdef ANDROID
+#include <sstream>
+namespace std
+{
+  inline
+  int stoi (const std::string & s)
+  {
+    std::istringstream iss (s);
+    int i;
+    iss >> i;
+    return i;
+  }
+
+  inline
+  std::string to_string (int i)
+  {
+    std::ostringstream oss;
+    oss << i;
+    return oss.str ();
+  }
+}
+#endif
+
 template <class K>
 class Index
 {

@@ -28,7 +28,6 @@
 #include <fstream>
 #include <algorithm>
 #include <numeric> // accumulate
-#include <filesystem>
 
 #include "p8-platform/util/StringUtils.h"
 
@@ -232,7 +231,7 @@ bool Freebox::StartSession ()
   if (m_app_token.empty ())
   {
     string file = m_path + "app_token.txt";
-    if (! filesystem::exists (file))
+    if (! XBMC->FileExists (file.c_str (), false))
     {
       char hostname [HOST_NAME_MAX + 1];
       gethostname (hostname, HOST_NAME_MAX);
@@ -637,8 +636,16 @@ bool Freebox::ProcessChannels ()
 
   static const ConflictComparator comparator;
 
+#ifndef ANDROID
   for (auto & [major, v1] : conflicts_by_major)
+#else
+  for (auto i : conflicts_by_major)
+#endif
   {
+#ifdef ANDROID
+    int major = i.first;
+    auto & v1 = i.second;
+#endif
     sort (v1.begin (), v1.end (), comparator);
 
     for (size_t j = 1; j < v1.size (); ++j)
@@ -651,8 +658,16 @@ bool Freebox::ProcessChannels ()
     v1.erase (v1.begin () + 1, v1.end ());
   }
 
+#ifndef ANDROID
   for (auto & [uuid, v1] : conflicts_by_uuid)
+#else
+  for (auto i : conflicts_by_uuid)
+#endif
   {
+#ifdef ANDROID
+    string uuid = i.first;
+    auto & v1   = i.second;
+#endif
     if (! v1.empty ())
     {
       sort (v1.begin (), v1.end (), comparator);
@@ -1435,8 +1450,9 @@ inline Document freebox_generator_request (const PVR_TIMER & timer)
 {
   string channel_uuid = "uuid-webtv-" + to_string (timer.iClientChannelUid);
   string title        = timer.strTitle;
-  tm     date         = *localtime (&timer.startTime);
-  int    duration     = timer.endTime - timer.startTime;
+  time_t start        = timer.startTime;
+  tm     date         = *localtime (&start);
+  int    duration     = timer.endTime - start;
 
   Document d (kObjectType);
   Document::AllocatorType & a = d.GetAllocator ();
