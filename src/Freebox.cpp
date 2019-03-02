@@ -117,6 +117,15 @@ int freebox_http (const string & custom, const string & url, const string & requ
 }
 
 /* static */
+enum Freebox::Source Freebox::ParseSource (const string & s)
+{
+  if (s == "")     return Source::AUTO;
+  if (s == "iptv") return Source::IPTV;
+  if (s == "dvb")  return Source::DVB;
+  return Source::DEFAULT;
+}
+
+/* static */
 enum Freebox::Quality Freebox::ParseQuality (const string & q)
 {
   if (q == "auto") return Quality::AUTO;
@@ -380,19 +389,57 @@ inline string StrNumbers (const vector<Conflict> & v)
   return '[' + text + ']';
 }
 
-Freebox::Stream::Stream (enum Quality quality,
+Freebox::Stream::Stream (enum Source  source,
+                         enum Quality quality,
                          const string & url) :
+  source (source),
   quality (quality),
   url (url)
 {
 }
 
-int Freebox::Channel::Score (enum Quality q, enum Quality q0)
+int Freebox::Stream::score (enum Source s) const
 {
-  switch (q0)
+  switch (s)
+  {
+    case Source::AUTO:
+      switch (source)
+      {
+        case Source::AUTO: return 100;
+        case Source::IPTV: return 10;
+        case Source::DVB:  return 1;
+        default:           return 0;
+      }
+
+    case Source::IPTV:
+      switch (source)
+      {
+        case Source::AUTO: return 10;
+        case Source::IPTV: return 100;
+        case Source::DVB:  return 1;
+        default:           return 0;
+      }
+
+    case Source::DVB:
+      switch (source)
+      {
+        case Source::AUTO: return 10;
+        case Source::IPTV: return 1;
+        case Source::DVB:  return 100;
+        default:           return 0;
+      }
+
+    default:
+      return 0;
+  }
+}
+
+int Freebox::Stream::score (enum Quality q) const
+{
+  switch (q)
   {
     case Quality::AUTO:
-      switch (q)
+      switch (quality)
       {
         case Quality::AUTO: return 1000;
         case Quality::HD:   return 100;
@@ -402,7 +449,7 @@ int Freebox::Channel::Score (enum Quality q, enum Quality q0)
       }
 
     case Quality::HD:
-      switch (q)
+      switch (quality)
       {
         case Quality::AUTO: return 100;
         case Quality::HD:   return 1000;
@@ -412,7 +459,7 @@ int Freebox::Channel::Score (enum Quality q, enum Quality q0)
       }
 
     case Quality::SD:
-      switch (q)
+      switch (quality)
       {
         case Quality::AUTO: return 100;
         case Quality::HD:   return 1;
@@ -422,7 +469,7 @@ int Freebox::Channel::Score (enum Quality q, enum Quality q0)
       }
 
     case Quality::LD:
-      switch (q)
+      switch (quality)
       {
         case Quality::AUTO: return 100;
         case Quality::HD:   return 1;
@@ -432,11 +479,16 @@ int Freebox::Channel::Score (enum Quality q, enum Quality q0)
       }
 
     case Quality::STEREO:
-      return (q == Quality::STEREO) ? 1000 : 0;
+      return (quality == Quality::STEREO) ? 1000 : 0;
 
     default:
       return 0;
   }
+}
+
+int Freebox::Stream::score (enum Source s, enum Quality q) const
+{
+  return 10000 * score (s) + score (q);
 }
 
 Freebox::Channel::Channel (const string & uuid,
@@ -474,16 +526,17 @@ void Freebox::Channel::GetChannel (ADDON_HANDLE handle, bool radio) const
   PVR->TransferChannelEntry (handle, &channel);
 }
 
-PVR_ERROR Freebox::Channel::GetStreamProperties (enum Quality q, PVR_NAMED_VALUE * properties, unsigned int * count) const
+PVR_ERROR Freebox::Channel::GetStreamProperties (enum Source source, enum Quality quality,
+                                                 PVR_NAMED_VALUE * properties, unsigned int * count) const
 {
   if (! streams.empty ())
   {
     int index = 0;
-    int score = Score (streams[0].quality, q);
+    int score = streams[0].score (source, quality);
 
     for (size_t i = 1; i < streams.size (); ++i)
     {
-      int s = Score (streams[i].quality, q);
+      int s = streams[i].score (source, quality);
       if (s > score)
       {
         index = i;
@@ -530,6 +583,13 @@ int Freebox::Event::Category (int c)
     case 22: return 0x2 <<4| 0x4; // Débat
     case 23: return 0x0 <<4| 0x0;
     case 24: return 0x7 <<4| 0x0; // Spectacle
+    case 25: return 0x0 <<4| 0x0;
+    case 26: return 0x0 <<4| 0x0;
+    case 27: return 0x0 <<4| 0x0;
+    case 28: return 0x0 <<4| 0x0;
+    case 29: return 0x0 <<4| 0x0;
+    case 30: return 0x0 <<4| 0x0;
+    case 31: return 0x7 <<4| 0x3; // Emission religieuse
     default: return 0;
   };
 }
@@ -712,9 +772,10 @@ bool Freebox::ProcessChannels ()
         for (SizeType i = 0; i < streams.Size (); ++i)
         {
           const Value  & s = streams [i];
+          const string & t = s["type"].GetString ();
           const string & q = s["quality"].GetString ();
           const string & r = s["rtsp"].GetString ();
-          data.emplace_back (ParseQuality (q), r);
+          data.emplace_back (ParseSource (t), ParseQuality (q), r);
         }
       }
       m_tv_channels.emplace (ChannelId (ch.uuid), Channel (ch.uuid, name, logo, ch.major, ch.minor, data));
@@ -1041,7 +1102,7 @@ PVR_ERROR Freebox::GetChannelStreamProperties (const PVR_CHANNEL * channel, PVR_
   P8PLATFORM::CLockObject lock (m_mutex);
   auto f = m_tv_channels.find (channel->iUniqueId);
   if (f != m_tv_channels.end ())
-    return f->second.GetStreamProperties (m_tv_quality, properties, count);
+    return f->second.GetStreamProperties (m_tv_source, m_tv_quality, properties, count);
 
   return PVR_ERROR_NO_ERROR;
 }
@@ -1446,6 +1507,19 @@ PVR_ERROR Freebox::GetTimers (ADDON_HANDLE handle) const
   return PVR_ERROR_NO_ERROR;
 }
 
+inline Value freebox_generator_weekdays (int w, Document::AllocatorType & a)
+{
+  Value r (kObjectType);
+  r.AddMember ("monday",    (w & PVR_WEEKDAY_MONDAY)    != 0, a);
+  r.AddMember ("tuesday",   (w & PVR_WEEKDAY_TUESDAY)   != 0, a);
+  r.AddMember ("wednesday", (w & PVR_WEEKDAY_WEDNESDAY) != 0, a);
+  r.AddMember ("thursday",  (w & PVR_WEEKDAY_THURSDAY)  != 0, a);
+  r.AddMember ("friday",    (w & PVR_WEEKDAY_FRIDAY)    != 0, a);
+  r.AddMember ("saturday",  (w & PVR_WEEKDAY_SATURDAY)  != 0, a);
+  r.AddMember ("sunday",    (w & PVR_WEEKDAY_SUNDAY)    != 0, a);
+  return r;
+}
+
 inline Document freebox_generator_request (const PVR_TIMER & timer)
 {
   string channel_uuid = "uuid-webtv-" + to_string (timer.iClientChannelUid);
@@ -1466,16 +1540,8 @@ inline Document freebox_generator_request (const PVR_TIMER & timer)
   p.AddMember ("margin_before", timer.iMarginStart * 60, a);
   p.AddMember ("margin_after",  timer.iMarginEnd   * 60, a);
   p.AddMember ("channel_uuid",  channel_uuid, a);
-  Value r (kObjectType);
-  r.AddMember ("monday",      (timer.iWeekdays & PVR_WEEKDAY_MONDAY)    != 0, a);
-  r.AddMember ("tuesday",     (timer.iWeekdays & PVR_WEEKDAY_TUESDAY)   != 0, a);
-  r.AddMember ("wednesday",   (timer.iWeekdays & PVR_WEEKDAY_WEDNESDAY) != 0, a);
-  r.AddMember ("thursday",    (timer.iWeekdays & PVR_WEEKDAY_THURSDAY)  != 0, a);
-  r.AddMember ("friday",      (timer.iWeekdays & PVR_WEEKDAY_FRIDAY)    != 0, a);
-  r.AddMember ("saturday",    (timer.iWeekdays & PVR_WEEKDAY_SATURDAY)  != 0, a);
-  r.AddMember ("sunday",      (timer.iWeekdays & PVR_WEEKDAY_SUNDAY)    != 0, a);
-  p.AddMember ("repeat_days", r, a);
-  d.AddMember ("params",      p, a);
+  p.AddMember ("repeat_days",   freebox_generator_weekdays (timer.iWeekdays, a), a);
+  d.AddMember ("params",        p, a);
   return d;
 }
 

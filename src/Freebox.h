@@ -29,7 +29,7 @@
 #include "p8-platform/threads/threads.h"
 #include "rapidjson/document.h"
 
-#define PVR_FREEBOX_VERSION "2.0b1"
+#define PVR_FREEBOX_VERSION "2.0b2"
 
 #define PVR_FREEBOX_BACKEND_NAME "Freebox TV"
 #define PVR_FREEBOX_BACKEND_VERSION PVR_FREEBOX_VERSION
@@ -111,20 +111,23 @@ class Freebox :
     class Stream
     {
       public:
+        enum Source  source;
         enum Quality quality;
         std::string  url;
 
+      protected:
+        int score (enum Source)  const;
+        int score (enum Quality) const;
+
       public:
-        Stream (enum Quality, const std::string &);
+        Stream (enum Source, enum Quality, const std::string &);
+        int score (enum Source, enum Quality) const;
     };
 
     class Channel
     {
       public:
         typedef std::map<enum Quality, std::string> Streams;
-
-      protected:
-        static int Score (enum Quality q, enum Quality q0);
 
       public:
         bool                radio;
@@ -144,7 +147,8 @@ class Freebox :
 
         bool IsHidden () const;
         void GetChannel (ADDON_HANDLE, bool radio) const;
-        PVR_ERROR GetStreamProperties (enum Quality, PVR_NAMED_VALUE *, unsigned int * count) const;
+        PVR_ERROR GetStreamProperties (enum Source, enum Quality,
+                                       PVR_NAMED_VALUE *, unsigned int * count) const;
     };
 
     // Query types.
@@ -391,6 +395,7 @@ class Freebox :
     void ProcessRecordings ();
 
   protected:
+    static enum Source  ParseSource  (const std::string &);
     static enum Quality ParseQuality (const std::string &);
 
     static std::string Password (const std::string & token, const std::string & challenge);
