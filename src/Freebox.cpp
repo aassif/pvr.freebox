@@ -572,7 +572,7 @@ int Freebox::Event::Category (int c)
     case 11: return 0x5 <<4| 0x0; // Jeunesse
     case 12: return 0x3 <<4| 0x1; // Jeu
     case 13: return 0x6 <<4| 0x0; // Musique
-    case 14: return 0x3 <<4| 0x0; // Divertissement
+    case 14: return 0x3 <<4| 0x2; // Divertissement
     case 15: return 0x0 <<4| 0x0;
     case 16: return 0x5 <<4| 0x5; // Dessin animé
     case 17: return 0x0 <<4| 0x0;
@@ -1492,7 +1492,7 @@ PVR_ERROR Freebox::GetTimers (ADDON_HANDLE handle) const
 
     /**/ if (t.state == "disabled")           timer.state = PVR_TIMER_STATE_DISABLED;
     else if (t.state == "start_error")        timer.state = PVR_TIMER_STATE_ERROR;
-    else if (t.state == "waiting_start_time") timer.state = t.conflict ? PVR_TIMER_STATE_CONFLICT_NOK : PVR_TIMER_STATE_SCHEDULED;
+    else if (t.state == "waiting_start_time") timer.state = PVR_TIMER_STATE_SCHEDULED; // FIXME: t.conflict?
     else if (t.state == "starting")           timer.state = PVR_TIMER_STATE_RECORDING;
     else if (t.state == "running")            timer.state = PVR_TIMER_STATE_RECORDING;
     else if (t.state == "running_error")      timer.state = PVR_TIMER_STATE_ERROR;
