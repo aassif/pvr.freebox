@@ -156,7 +156,7 @@ bool Freebox::HTTP (const string & custom,
 
   string response;
   long http = freebox_http (custom, url, buffer.GetString (), &response, session);
-  XBMC->Log (LOG_DEBUG, "%s %s: %s", custom.c_str (), url.c_str (), response.c_str ());
+  XBMC->Log (LOG_DEBUG, "%s %s %s", custom.c_str (), url.c_str (), response.c_str ());
 
   doc->Parse (response);
 
@@ -526,6 +526,11 @@ void Freebox::Channel::GetChannel (ADDON_HANDLE handle, bool radio) const
   PVR->TransferChannelEntry (handle, &channel);
 }
 
+void freebox_debug_stream_properties (const string & url, int index, int score)
+{
+  XBMC->Log (LOG_DEBUG, "GetStreamProperties: '%s' (index = %d, score = %d)", url.c_str (), index, score);
+}
+
 PVR_ERROR Freebox::Channel::GetStreamProperties (enum Source source, enum Quality quality,
                                                  PVR_NAMED_VALUE * properties, unsigned int * count) const
 {
@@ -533,10 +538,12 @@ PVR_ERROR Freebox::Channel::GetStreamProperties (enum Source source, enum Qualit
   {
     int index = 0;
     int score = streams[0].score (source, quality);
+    freebox_debug_stream_properties (streams[0].url, index, score);
 
     for (size_t i = 1; i < streams.size (); ++i)
     {
       int s = streams[i].score (source, quality);
+      freebox_debug_stream_properties (streams[i].url, i, s);
       if (s > score)
       {
         index = i;
