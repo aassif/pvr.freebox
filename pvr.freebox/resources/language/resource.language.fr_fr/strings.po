@@ -21,98 +21,98 @@ msgid "%d channels loaded"
 msgstr "%d chaînes chargées"
 
 msgctxt "#30001"
-msgid "Authorization required"
-msgstr "Autorisation requise"
+msgid "Authorize Kodi on Freebox Server"
+msgstr "Autorisez Kodi sur le Freebox Server"
 
-msgctxt "#40000"
-msgid "Section 1"
-msgstr "Section 1"
-
-msgctxt "#41000"
+msgctxt "#30002"
 msgid "General"
 msgstr "Général"
 
-msgctxt "#41100"
-msgid "General"
-msgstr "Général"
-
-msgctxt "#41110"
+msgctxt "#30003"
 msgid "Delay"
 msgstr "Délai"
 
-msgctxt "#41111"
+msgctxt "#30004"
 msgid "Delay between queries."
 msgstr "Délai entre chaque requête."
 
-msgctxt "#41120"
+msgctxt "#30005"
 msgid "Restart"
 msgstr "Redémarrer"
 
-msgctxt "#41121"
-msgid "Restart"
-msgstr "Redémarrer"
+msgctxt "#30006"
+msgid "Restart addon after saving settings."
+msgstr "Redémarre le logiciel après enregistrement des paramètres."
 
-msgctxt "#41200"
+msgctxt "#30007"
 msgid "Television"
 msgstr "Télévision"
 
-msgctxt "#41210"
+msgctxt "#30008"
 msgid "Source"
 msgstr "Source"
 
-msgctxt "#41211"
+msgctxt "#30009"
 msgid "Source"
 msgstr "Source du flux TV : auto, IPTV ou TNT."
 
-msgctxt "#41212"
+msgctxt "#30010"
 msgid "Auto"
 msgstr "Auto"
 
-msgctxt "#41213"
+msgctxt "#30011"
 msgid "IPTV"
 msgstr "IPTV"
 
-msgctxt "#41214"
+msgctxt "#30012"
 msgid "DVB"
 msgstr "TNT"
 
-msgctxt "#41220"
+msgctxt "#30013"
 msgid "Quality"
 msgstr "Qualité"
 
-msgctxt "#41221"
+msgctxt "#30014"
 msgid "Quality"
 msgstr "Qualité du flux TV : auto, haute, standard, basse ou 3D."
 
-msgctxt "#41222"
+msgctxt "#30015"
 msgid "Auto"
 msgstr "Auto"
 
-msgctxt "#41223"
+msgctxt "#30016"
 msgid "High"
 msgstr "Haute"
 
-msgctxt "#41224"
+msgctxt "#30017"
 msgid "Standard"
 msgstr "Standard"
 
-msgctxt "#41225"
+msgctxt "#30018"
 msgid "Low"
 msgstr "Basse"
 
-msgctxt "#41226"
+msgctxt "#30019"
 msgid "3D"
 msgstr "3D"
 
-msgctxt "#41300"
+msgctxt "#30020"
 msgid "EPG"
 msgstr "Guide TV"
 
-msgctxt "#41310"
+msgctxt "#30021"
 msgid "Extended"
 msgstr "Étendu"
 
-msgctxt "#41311"
-msgid "Extended EPG."
-msgstr "Guide TV étendu (résumé)."
+msgctxt "#30022"
+msgid "Extended EPG: plot, cast, etc."
+msgstr "Guide TV étendu : chargement du résumé, des acteurs, etc."
+
+msgctxt "#30023"
+msgid "Category conversion"
+msgstr "Conversion des catégories"
+
+msgctxt "#30024"
+msgid "Convert French categories into standard categories."
+msgstr "Conversion des catégories françaises en catégories standard."
 

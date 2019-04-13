@@ -25,11 +25,12 @@
 #include <queue>
 #include <algorithm> // find_if
 #include "libXBMC_pvr.h"
+#include "libKODI_guilib.h"
 #include "p8-platform/os.h"
 #include "p8-platform/threads/threads.h"
 #include "rapidjson/document.h"
 
-#define PVR_FREEBOX_VERSION "2.0b2"
+#define PVR_FREEBOX_VERSION "2.0b3"
 
 #define PVR_FREEBOX_BACKEND_NAME "Freebox TV"
 #define PVR_FREEBOX_BACKEND_VERSION PVR_FREEBOX_VERSION
@@ -38,6 +39,22 @@
 #define PVR_FREEBOX_APP_ID "org.xbmc.freebox"
 #define PVR_FREEBOX_APP_NAME "Kodi"
 #define PVR_FREEBOX_APP_VERSION PVR_FREEBOX_VERSION
+
+#define PVR_FREEBOX_MENUHOOK_CHANNEL_SOURCE  1
+#define PVR_FREEBOX_MENUHOOK_CHANNEL_QUALITY 2
+
+#define PVR_FREEBOX_STRING_CHANNELS_LOADED      30000
+#define PVR_FREEBOX_STRING_AUTH_REQUIRED        30001
+#define PVR_FREEBOX_STRING_CHANNEL_SOURCE       30008
+#define PVR_FREEBOX_STRING_CHANNEL_SOURCE_AUTO  30010
+#define PVR_FREEBOX_STRING_CHANNEL_SOURCE_IPTV  30011
+#define PVR_FREEBOX_STRING_CHANNEL_SOURCE_DVB   30012
+#define PVR_FREEBOX_STRING_CHANNEL_QUALITY      30013
+#define PVR_FREEBOX_STRING_CHANNEL_QUALITY_AUTO 30015
+#define PVR_FREEBOX_STRING_CHANNEL_QUALITY_HD   30016
+#define PVR_FREEBOX_STRING_CHANNEL_QUALITY_SD   30017
+#define PVR_FREEBOX_STRING_CHANNEL_QUALITY_LD   30018
+#define PVR_FREEBOX_STRING_CHANNEL_QUALITY_3D   30019
 
 #ifdef ANDROID
 #include <sstream>
@@ -98,9 +115,6 @@ class Freebox :
     {
       return std::stoi (uuid.substr (6)); // pluri_*
     }
-
-    // Authorization status.
-    enum class Status {UNKNOWN = 0, PENDING = 1, TIMEOUT = 2, GRANTED = 3, DENIED = 5};
 
     // Channel source.
     enum class Source {DEFAULT = 0, AUTO = 1, IPTV = 2, DVB = 3};
@@ -181,7 +195,8 @@ class Freebox :
     class Event
     {
       public:
-        static int Category (int);
+        static std::string Native (int);
+        static int         Colors (int);
 
       public:
         class CastMember
@@ -199,13 +214,13 @@ class Freebox :
         typedef std::vector<CastMember> Cast;
 
       protected:
-        class ConcatIf
+        class ConcatIfJob
         {
           private:
             std::string m_job;
 
           public:
-            ConcatIf (const std::string & job);
+            ConcatIfJob (const std::string & job);
             std::string operator() (const std::string &, const Freebox::Event::CastMember &) const;
         };
 
@@ -317,7 +332,7 @@ class Freebox :
     };
 
   public:
-    Freebox (const std::string & path, int quality, int days, bool extended, int delay);
+    Freebox (const std::string & path, int source, int quality, int days, bool extended, bool colors, int delay);
     virtual ~Freebox ();
 
     // Freebox Server.
@@ -331,6 +346,8 @@ class Freebox :
     void SetDays (int);
     // Extended EPG.
     void SetExtended (bool);
+    // Colored Categories.
+    void SetColors (bool);
     // Delay setting.
     void SetDelay (int);
 
@@ -356,6 +373,9 @@ class Freebox :
     PVR_ERROR AddTimer    (const PVR_TIMER &);
     PVR_ERROR UpdateTimer (const PVR_TIMER &);
     PVR_ERROR DeleteTimer (const PVR_TIMER &, bool force);
+
+    // M E N U / H O O K S /////////////////////////////////////////////////////
+    PVR_ERROR MenuHook (const PVR_MENUHOOK &, const PVR_MENUHOOK_DATA &);
 
   protected:
     virtual void * Process ();
@@ -432,6 +452,7 @@ class Freebox :
     int m_epg_days;
     time_t m_epg_last;
     bool m_epg_extended;
+    bool m_epg_colors;
     // Recordings //////////////////////////////////////////////////////////////
     std::map<int, Recording> m_recordings;
     // Timers //////////////////////////////////////////////////////////////////

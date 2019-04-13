@@ -41,12 +41,14 @@ int          delay    = 0;
 int          source   = 1;
 int          quality  = 1;
 bool         extended = false;
+bool         colors   = false;
 bool         init     = false;
 ADDON_STATUS status   = ADDON_STATUS_UNKNOWN;
 Freebox    * data     = nullptr;
 
-CHelper_libXBMC_addon * XBMC = nullptr;
-CHelper_libXBMC_pvr   * PVR  = nullptr;
+CHelper_libXBMC_addon  * XBMC = nullptr;
+CHelper_libXBMC_pvr    * PVR  = nullptr;
+CHelper_libKODI_guilib * GUI  = nullptr;
 
 extern "C" {
 
@@ -56,6 +58,7 @@ void ADDON_ReadSettings ()
   if (! XBMC->GetSetting ("source",   &source))   source   = 1;
   if (! XBMC->GetSetting ("quality",  &quality))  quality  = 1;
   if (! XBMC->GetSetting ("extended", &extended)) extended = false;
+  if (! XBMC->GetSetting ("colors",   &colors))   colors   = false;
 }
 
 ADDON_STATUS ADDON_Create (void * callbacks, void * properties)
@@ -82,6 +85,15 @@ ADDON_STATUS ADDON_Create (void * callbacks, void * properties)
     return ADDON_STATUS_PERMANENT_FAILURE;
   }
 
+  GUI = new CHelper_libKODI_guilib;
+  if (! GUI->RegisterMe (callbacks))
+  {
+    SAFE_DELETE (GUI);
+    SAFE_DELETE (PVR);
+    SAFE_DELETE (XBMC);
+    return ADDON_STATUS_PERMANENT_FAILURE;
+  }
+
   XBMC->Log (LOG_DEBUG, "%s - Creating the Freebox TV add-on", __FUNCTION__);
 
   status = ADDON_STATUS_UNKNOWN;
@@ -91,7 +103,16 @@ ADDON_STATUS ADDON_Create (void * callbacks, void * properties)
 
   ADDON_ReadSettings ();
 
-  data   = new Freebox (p->strUserPath, quality, p->iEpgMaxDays, extended, delay);
+  static std::vector<PVR_MENUHOOK> HOOKS =
+  {
+    {PVR_FREEBOX_MENUHOOK_CHANNEL_SOURCE,  PVR_FREEBOX_STRING_CHANNEL_SOURCE,  PVR_MENUHOOK_CHANNEL},
+    {PVR_FREEBOX_MENUHOOK_CHANNEL_QUALITY, PVR_FREEBOX_STRING_CHANNEL_QUALITY, PVR_MENUHOOK_CHANNEL}
+  };
+
+  for (PVR_MENUHOOK & h : HOOKS)
+    PVR->AddMenuHook (&h);
+
+  data   = new Freebox (p->strUserPath, source, quality, p->iEpgMaxDays, extended, colors, delay);
   status = ADDON_STATUS_OK;
   init   = true;
 
@@ -114,23 +135,29 @@ ADDON_STATUS ADDON_SetSetting (const char * name, const void * value)
 {
   if (data)
   {
-    if (std::string (name) == "delay")
+    if (! strcmp (name, "delay"))
       data->SetDelay (*((int *) value));
 
-    if (std::string (name) == "restart")
+    if (! strcmp (name, "restart"))
     {
-      bool restart = *((const char *) value);
+      bool restart = *((bool *) value);
       return restart ? ADDON_STATUS_NEED_RESTART : ADDON_STATUS_OK;
     }
 
-    if (std::string (name) == "source")
+    if (! strcmp (name, "source"))
       data->SetSource (*((int *) value));
 
-    if (std::string (name) == "quality")
+    if (! strcmp (name, "quality"))
       data->SetQuality (*((int *) value));
 
-    if (std::string (name) == "extended")
+    if (! strcmp (name, "extended"))
       data->SetExtended (*((bool *) value));
+
+    if (! strcmp (name, "colors"))
+    {
+      data->SetColors (*((bool *) value));
+      return ADDON_STATUS_NEED_RESTART;
+    }
   }
 
   return ADDON_STATUS_OK;
@@ -301,10 +328,14 @@ PVR_ERROR DeleteTimer (const PVR_TIMER & timer, bool force)
 PVR_ERROR GetDriveSpace (long long *, long long *) {return PVR_ERROR_NOT_IMPLEMENTED;}
 PVR_ERROR SignalStatus (PVR_SIGNAL_STATUS &) {return PVR_ERROR_NOT_IMPLEMENTED;}
 
+PVR_ERROR CallMenuHook (const PVR_MENUHOOK & hook, const PVR_MENUHOOK_DATA & d)
+{
+  return data ? data->MenuHook (hook, d) : PVR_ERROR_SERVER_ERROR;
+}
+
 /** UNUSED API FUNCTIONS */
 bool CanPauseStream () {return false;}
 PVR_ERROR OpenDialogChannelScan () {return PVR_ERROR_NOT_IMPLEMENTED;}
-PVR_ERROR CallMenuHook (const PVR_MENUHOOK &, const PVR_MENUHOOK_DATA &) {return PVR_ERROR_NOT_IMPLEMENTED;}
 PVR_ERROR DeleteChannel (const PVR_CHANNEL &) {return PVR_ERROR_NOT_IMPLEMENTED;}
 PVR_ERROR RenameChannel (const PVR_CHANNEL &) {return PVR_ERROR_NOT_IMPLEMENTED;}
 PVR_ERROR OpenDialogChannelSettings (const PVR_CHANNEL &) {return PVR_ERROR_NOT_IMPLEMENTED;}
@@ -326,8 +357,8 @@ PVR_ERROR SetRecordingLastPlayedPosition (const PVR_RECORDING &, int) {return PV
 int GetRecordingLastPlayedPosition (const PVR_RECORDING &) {return -1;}
 PVR_ERROR GetRecordingEdl (const PVR_RECORDING &, PVR_EDL_ENTRY [], int *) {return PVR_ERROR_NOT_IMPLEMENTED;};
 void DemuxAbort () {}
-DemuxPacket* DemuxRead () {return NULL;}
 bool IsTimeshifting () {return false;}
+DemuxPacket * DemuxRead () {return NULL;}
 bool IsRealTimeStream () {return true;}
 void PauseStream (bool) {}
 bool CanSeekStream () {return false;}

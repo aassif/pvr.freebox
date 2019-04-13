@@ -142,10 +142,10 @@ bool Freebox::HTTP (const string & custom,
                     const Document & request,
                     Document * doc, Type type) const
 {
-  P8PLATFORM::CLockObject lock (m_mutex);
+  m_mutex.Lock ();
   string url = URL (path);
   string session = m_session_token;
-  lock.Unlock ();
+  m_mutex.Unlock ();
 
   StringBuffer buffer;
   if (! request.IsNull ())
@@ -303,8 +303,8 @@ bool Freebox::StartSession ()
     }
     else
     {
-      char * notification = XBMC->GetLocalizedString (30001); // "Authorization required"
-      XBMC->QueueNotification (QUEUE_INFO, notification);
+      char * notification = XBMC->GetLocalizedString (PVR_FREEBOX_STRING_AUTH_REQUIRED);
+      XBMC->QueueNotification (QUEUE_WARNING, notification);
       XBMC->FreeString (notification);
       return false;
     }
@@ -561,43 +561,57 @@ PVR_ERROR Freebox::Channel::GetStreamProperties (enum Source source, enum Qualit
   return PVR_ERROR_NO_ERROR;
 }
 
-int Freebox::Event::Category (int c)
+string Freebox::Event::Native (int c)
 {
   switch (c)
   {
-    case  0: return 0x0 <<4| 0x0;
-    case  1: return 0x1 <<4| 0x0; // Film
-    case  2: return 0x1 <<4| 0x0; // Téléfilm
-    case  3: return 0x1 <<4| 0x0; // Série/Feuilleton
-    case  4: return 0x1 <<4| 0x5; // Feuilleton
-    case  5: return 0x2 <<4| 0x3; // Documentaire
-    case  6: return 0x7 <<4| 0x0; // Théâtre
-    case  7: return 0x6 <<4| 0x5; // Opéra
-    case  8: return 0x0 <<4| 0x0;
-    case  9: return 0x3 <<4| 0x2; // Variétés
-    case 10: return 0x8 <<4| 0x1; // Magazine
-    case 11: return 0x5 <<4| 0x0; // Jeunesse
-    case 12: return 0x3 <<4| 0x1; // Jeu
-    case 13: return 0x6 <<4| 0x0; // Musique
-    case 14: return 0x3 <<4| 0x2; // Divertissement
-    case 15: return 0x0 <<4| 0x0;
-    case 16: return 0x5 <<4| 0x5; // Dessin animé
-    case 17: return 0x0 <<4| 0x0;
-    case 18: return 0x0 <<4| 0x0;
-    case 19: return 0x4 <<4| 0x0; // Sport
-    case 20: return 0x2 <<4| 0x1; // Journal
-    case 21: return 0x0 <<4| 0x0;
-    case 22: return 0x2 <<4| 0x4; // Débat
-    case 23: return 0x0 <<4| 0x0;
-    case 24: return 0x7 <<4| 0x0; // Spectacle
-    case 25: return 0x0 <<4| 0x0;
-    case 26: return 0x0 <<4| 0x0;
-    case 27: return 0x0 <<4| 0x0;
-    case 28: return 0x0 <<4| 0x0;
-    case 29: return 0x0 <<4| 0x0;
-    case 30: return 0x0 <<4| 0x0;
-    case 31: return 0x7 <<4| 0x3; // Emission religieuse
-    default: return 0;
+    case  1: return "Film";
+    case  2: return "Téléfilm";
+    case  3: return "Série/Feuilleton";
+    case  4: return "Feuilleton";
+    case  5: return "Documentaire";
+    case  6: return "Théâtre";
+    case  7: return "Opéra";
+    case  9: return "Variétés";
+    case 10: return "Magazine";
+    case 11: return "Jeunesse";
+    case 12: return "Jeu";
+    case 13: return "Musique";
+    case 14: return "Divertissement";
+    case 16: return "Dessin animé";
+    case 19: return "Sport";
+    case 20: return "Journal";
+    case 22: return "Débat";
+    case 24: return "Spectacle";
+    case 31: return "Emission religieuse";
+    default: return "";
+  };
+}
+
+int Freebox::Event::Colors (int c)
+{
+  switch (c)
+  {
+    case  1: return 0x10; // Film
+    case  2: return 0x10; // Téléfilm
+    case  3: return 0x10; // Série/Feuilleton
+    case  4: return 0x15; // Feuilleton
+    case  5: return 0x23; // Documentaire
+    case  6: return 0x70; // Théâtre
+    case  7: return 0x65; // Opéra
+    case  9: return 0x32; // Variétés
+    case 10: return 0x81; // Magazine
+    case 11: return 0x50; // Jeunesse
+    case 12: return 0x31; // Jeu
+    case 13: return 0x60; // Musique
+    case 14: return 0x32; // Divertissement
+    case 16: return 0x55; // Dessin animé
+    case 19: return 0x40; // Sport
+    case 20: return 0x21; // Journal
+    case 22: return 0x24; // Débat
+    case 24: return 0x70; // Spectacle
+    case 31: return 0x73; // Emission religieuse
+    default: return 0x00;
   };
 }
 
@@ -625,7 +639,7 @@ Freebox::Event::Event (const Value & e, unsigned int channel, time_t date) :
   year     (JSON<int>    (e, "year")),
   cast     ()
 {
-  if (category != 0 && Category (category) == 0)
+  if (category != 0 && Colors (category) == 0)
   {
     string name = JSON<string> (e, "category_name");
     cout << category << " : " << name << endl;
@@ -641,12 +655,12 @@ Freebox::Event::Event (const Value & e, unsigned int channel, time_t date) :
   }
 }
 
-Freebox::Event::ConcatIf::ConcatIf (const string & job) :
+Freebox::Event::ConcatIfJob::ConcatIfJob (const string & job) :
   m_job (job)
 {
 }
 
-string Freebox::Event::ConcatIf::operator() (const string & input, const Freebox::Event::CastMember & m) const
+string Freebox::Event::ConcatIfJob::operator() (const string & input, const Freebox::Event::CastMember & m) const
 {
   if (m.job != m_job) return input;
   return (input.empty () ? "" : input + EPG_STRING_TOKEN_SEPARATOR) + (m.first_name + ' ' + m.last_name);
@@ -654,13 +668,13 @@ string Freebox::Event::ConcatIf::operator() (const string & input, const Freebox
 
 string Freebox::Event::GetCastDirector () const
 {
-  static const ConcatIf CONCAT ("Réalisateur");
+  static const ConcatIfJob CONCAT ("Réalisateur");
   return accumulate (cast.begin (), cast.end (), string (), CONCAT);
 }
 
 string Freebox::Event::GetCastActors () const
 {
-  static const ConcatIf CONCAT ("Acteur");
+  static const ConcatIfJob CONCAT ("Acteur");
   return accumulate (cast.begin (), cast.end (), string (), CONCAT);
 }
 
@@ -671,7 +685,7 @@ bool Freebox::ProcessChannels ()
   Document channels;
   if (! GET ("/api/v6/tv/channels", &channels)) return false;
 
-  char * notification = XBMC->GetLocalizedString (30000); // "%d channels loaded"
+  char * notification = XBMC->GetLocalizedString (PVR_FREEBOX_STRING_CHANNELS_LOADED);
   XBMC->QueueNotification (QUEUE_INFO, notification, channels["result"].MemberCount ());
   XBMC->FreeString (notification);
 
@@ -793,9 +807,11 @@ bool Freebox::ProcessChannels ()
 }
 
 Freebox::Freebox (const string & path,
+                  int source,
                   int quality,
                   int days,
                   bool extended,
+                  bool colors,
                   int delay) :
   m_path (path),
   m_server ("mafreebox.freebox.fr"),
@@ -804,18 +820,20 @@ Freebox::Freebox (const string & path,
   m_track_id (),
   m_session_token (),
   m_tv_channels (),
-  m_tv_source (Source::AUTO),
+  m_tv_source (Source (source)),
   m_tv_quality (Quality (quality)),
   m_epg_queries (),
   m_epg_cache (),
   m_epg_days (0),
   m_epg_last (0),
   m_epg_extended (extended),
+  m_epg_colors (colors),
   m_recordings (),
   m_unique_id (1),
   m_generators (),
   m_timers ()
 {
+  XBMC->QueueNotification (QUEUE_INFO, PVR_FREEBOX_VERSION);
   SetDays (days);
   ProcessChannels ();
   CreateThread (false);
@@ -842,7 +860,6 @@ string Freebox::URL (const string & query) const
 void Freebox::SetSource (int s)
 {
   P8PLATFORM::CLockObject lock (m_mutex);
-cout << "source: " << s << endl;
   m_tv_source = Source (s);
 }
 
@@ -862,6 +879,12 @@ void Freebox::SetExtended (bool e)
 {
   P8PLATFORM::CLockObject lock (m_mutex);
   m_epg_extended = e;
+}
+
+void Freebox::SetColors (bool c)
+{
+  P8PLATFORM::CLockObject lock (m_mutex);
+  m_epg_colors = c;
 }
 
 void Freebox::SetDelay (int d)
@@ -886,11 +909,10 @@ void Freebox::ProcessEvent (const Event & e, EPG_EVENT_STATE state)
     return;
   }
 
-  string picture = e.picture;
-  {
-    P8PLATFORM::CLockObject lock (m_mutex);
-    if (! picture.empty ()) picture = URL (picture);
-  }
+  m_mutex.Lock ();
+  bool colors = m_epg_colors;
+  string picture = ! e.picture.empty () ? URL (e.picture) : "";
+  m_mutex.Unlock ();
 
   string actors   = e.GetCastActors   ();
   string director = e.GetCastDirector ();
@@ -912,16 +934,20 @@ void Freebox::ProcessEvent (const Event & e, EPG_EVENT_STATE state)
   tag.iYear               = e.year;
   tag.strIMDBNumber       = NULL;
   tag.strIconPath         = PVR_FREEBOX_C_STR (picture);
-#if 1
-  int c = Event::Category (e.category);
-  tag.iGenreType          = c & 0xF0;
-  tag.iGenreSubType       = c & 0x0F;
-  tag.strGenreDescription = NULL;
-#else
-  tag.iGenreType          = EPG_GENRE_USE_STRING;
-  tag.iGenreSubType       = 0;
-  tag.strGenreDescription = PVR_FREEBOX_C_STR (e.category);
-#endif
+  if (colors)
+  {
+    int c = Event::Colors (e.category);
+    tag.iGenreType          = c & 0xF0;
+    tag.iGenreSubType       = c & 0x0F;
+    tag.strGenreDescription = NULL;
+  }
+  else
+  {
+    string c = Event::Native (e.category);
+    tag.iGenreType          = EPG_GENRE_USE_STRING;
+    tag.iGenreSubType       = 0;
+    tag.strGenreDescription = PVR_FREEBOX_C_STR (c);
+  }
   tag.iParentalRating     = 0;
   tag.iStarRating         = 0;
   tag.bNotify             = false;
@@ -1347,7 +1373,10 @@ void Freebox::ProcessTimers ()
     {
       int        id = result[i]["id"].GetInt ();
       int unique_id = m_unique_id ("programmed/" + to_string (id));
-      m_timers.emplace (unique_id, Timer (result [i]));
+
+      const string & state = result[i]["state"].GetString ();
+      if (state != "finished" && state != "failed" && state != "start_error" && state != "running_error")
+        m_timers.emplace (unique_id, Timer (result [i]));
     }
 
     PVR->TriggerTimerUpdate ();
@@ -1840,6 +1869,86 @@ PVR_ERROR Freebox::DeleteTimer (const PVR_TIMER & timer, bool force)
     {
       //cout << "DeleteTimer: UNKNOWN TYPE!" << endl;
       return PVR_ERROR_SERVER_ERROR;
+    }
+  }
+
+  return PVR_ERROR_NO_ERROR;
+}
+
+int freebox_dialog_select (const vector<long> & v, int selected = -1)
+{
+  // Localize labels.
+  vector<char *> labels;
+  transform (v.begin (), v.end (), back_inserter (labels),
+             [] (long id) {return XBMC->GetLocalizedString (id);});
+
+  // GUI selection.
+  int r = GUI->Dialog_Select (labels[0], (const char **) &(labels[1]), labels.size () - 1, selected);
+
+  // Free localized labels.
+  for (char * label : labels) XBMC->FreeString (label);
+
+  return r;
+}
+
+int freebox_dialog_source (int selected = -1)
+{
+  static const vector<long> LABELS =
+  {
+    // Heading.
+    PVR_FREEBOX_STRING_CHANNEL_SOURCE,
+    // Entries.
+    PVR_FREEBOX_STRING_CHANNEL_SOURCE_AUTO,
+    PVR_FREEBOX_STRING_CHANNEL_SOURCE_IPTV,
+    PVR_FREEBOX_STRING_CHANNEL_SOURCE_DVB
+  };
+
+  return freebox_dialog_select (LABELS, selected);
+}
+
+int freebox_dialog_quality (int selected = -1)
+{
+  static const vector<long> LABELS =
+  {
+    // Heading.
+    PVR_FREEBOX_STRING_CHANNEL_QUALITY,
+    // Entries.
+    PVR_FREEBOX_STRING_CHANNEL_QUALITY_AUTO,
+    PVR_FREEBOX_STRING_CHANNEL_QUALITY_HD,
+    PVR_FREEBOX_STRING_CHANNEL_QUALITY_SD,
+    PVR_FREEBOX_STRING_CHANNEL_QUALITY_LD,
+    PVR_FREEBOX_STRING_CHANNEL_QUALITY_3D
+  };
+
+  return freebox_dialog_select (LABELS, selected);
+}
+
+PVR_ERROR Freebox::MenuHook (const PVR_MENUHOOK & hook, const PVR_MENUHOOK_DATA & data)
+{
+  switch (hook.iHookId)
+  {
+    case PVR_FREEBOX_MENUHOOK_CHANNEL_SOURCE:
+    {
+      const PVR_CHANNEL & channel = data.data.channel;
+
+      cout << "PVR_FREEBOX_MENUHOOK_CHANNEL_SOURCE" << ' '
+           << '"' << channel.strChannelName << '"' << ' ' << '[' << channel.iUniqueId << ']' << endl;
+
+      int source = freebox_dialog_source ();
+
+      return PVR_ERROR_NO_ERROR;
+    }
+
+    case PVR_FREEBOX_MENUHOOK_CHANNEL_QUALITY:
+    {
+      const PVR_CHANNEL & channel = data.data.channel;
+
+      cout << "PVR_FREEBOX_MENUHOOK_CHANNEL_QUALITY" << ' '
+           << '"' << channel.strChannelName << '"' << ' ' << '[' << channel.iUniqueId << ']' << endl;
+
+      int quality = freebox_dialog_quality ();
+
+      return PVR_ERROR_NO_ERROR;
     }
   }
 
