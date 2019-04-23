@@ -56,29 +56,6 @@
 #define PVR_FREEBOX_STRING_CHANNEL_QUALITY_LD   30018
 #define PVR_FREEBOX_STRING_CHANNEL_QUALITY_3D   30019
 
-#ifdef ANDROID
-#include <sstream>
-namespace std
-{
-  inline
-  int stoi (const std::string & s)
-  {
-    std::istringstream iss (s);
-    int i;
-    iss >> i;
-    return i;
-  }
-
-  inline
-  std::string to_string (int i)
-  {
-    std::ostringstream oss;
-    oss << i;
-    return oss.str ();
-  }
-}
-#endif
-
 template <class K>
 class Index
 {

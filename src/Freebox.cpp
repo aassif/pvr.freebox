@@ -717,38 +717,22 @@ bool Freebox::ProcessChannels ()
 
   static const ConflictComparator comparator;
 
-#ifndef ANDROID
   for (auto & [major, v1] : conflicts_by_major)
-#else
-  for (auto i : conflicts_by_major)
-#endif
   {
-#ifdef ANDROID
-    int major = i.first;
-    auto & v1 = i.second;
-#endif
     sort (v1.begin (), v1.end (), comparator);
 
     for (size_t j = 1; j < v1.size (); ++j)
     {
       Conflicts & v2 = conflicts_by_uuid [v1[j].uuid];
       v2.erase (remove_if (v2.begin (), v2.end (),
-        [major] (const Conflict & c) {return c.major == major;}));
+        [m = major] (const Conflict & c) {return c.major == m;}));
     }
 
     v1.erase (v1.begin () + 1, v1.end ());
   }
 
-#ifndef ANDROID
   for (auto & [uuid, v1] : conflicts_by_uuid)
-#else
-  for (auto i : conflicts_by_uuid)
-#endif
   {
-#ifdef ANDROID
-    string uuid = i.first;
-    auto & v1   = i.second;
-#endif
     if (! v1.empty ())
     {
       sort (v1.begin (), v1.end (), comparator);
@@ -757,7 +741,7 @@ bool Freebox::ProcessChannels ()
       {
         Conflicts & v2 = conflicts_by_major [v1[j].major];
         v2.erase (remove_if (v2.begin (), v2.end (),
-          [&uuid] (const Conflict & c) {return c.uuid == uuid;}));
+          [u = uuid] (const Conflict & c) {return c.uuid == u;}));
       }
 
       v1.erase (v1.begin () + 1, v1.end ());
