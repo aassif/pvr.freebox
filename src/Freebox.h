@@ -30,7 +30,7 @@
 #include "p8-platform/threads/threads.h"
 #include "rapidjson/document.h"
 
-#define PVR_FREEBOX_VERSION "2.0b3"
+#define PVR_FREEBOX_VERSION "2.0"
 
 #define PVR_FREEBOX_BACKEND_NAME "Freebox TV"
 #define PVR_FREEBOX_BACKEND_VERSION PVR_FREEBOX_VERSION
@@ -94,10 +94,10 @@ class Freebox :
     }
 
     // Channel source.
-    enum class Source {DEFAULT = 0, AUTO = 1, IPTV = 2, DVB = 3};
+    enum class Source {DEFAULT = -1, AUTO = 0, IPTV = 1, DVB = 2};
 
     // Channel quality.
-    enum class Quality {DEFAULT = 0, AUTO = 1, HD = 2, SD = 3, LD = 4, STEREO = 5};
+    enum class Quality {DEFAULT = -1, AUTO = 0, HD = 1, SD = 2, LD = 3, STEREO = 4};
 
     class Stream
     {
@@ -391,9 +391,21 @@ class Freebox :
     void ProcessTimers     ();
     void ProcessRecordings ();
 
+    // Channel preferences.
+    enum Source  ChannelSource  (unsigned int id, bool fallback = true);
+    enum Quality ChannelQuality (unsigned int id, bool fallback = true);
+    void SetChannelSource  (unsigned int id, enum Source);
+    void SetChannelQuality (unsigned int id, enum Quality);
+
   protected:
     static enum Source  ParseSource  (const std::string &);
     static enum Quality ParseQuality (const std::string &);
+
+    static std::string StrSource  (enum Source);
+    static std::string StrQuality (enum Quality);
+
+    static enum Source  DialogSource  (enum Source  selected =  Source::DEFAULT);
+    static enum Quality DialogQuality (enum Quality selected = Quality::DEFAULT);
 
     static std::string Password (const std::string & token, const std::string & challenge);
 
@@ -423,6 +435,8 @@ class Freebox :
     std::map<unsigned int, Channel> m_tv_channels;
     enum Source  m_tv_source;
     enum Quality m_tv_quality;
+    std::map<unsigned int, enum Source>  m_tv_prefs_source;
+    std::map<unsigned int, enum Quality> m_tv_prefs_quality;
     // EPG /////////////////////////////////////////////////////////////////////
     std::queue<Query> m_epg_queries;
     std::set<std::string> m_epg_cache;

@@ -40,6 +40,7 @@
 #include "openssl/buffer.h"
 #include "rapidjson/writer.h"
 #include "rapidjson/stringbuffer.h"
+#include "rapidjson/istreamwrapper.h"
 #include "rapidjson/ostreamwrapper.h"
 
 using namespace std;
@@ -134,6 +135,32 @@ enum Freebox::Quality Freebox::ParseQuality (const string & q)
   if (q == "ld")   return Quality::LD;
   if (q == "3d")   return Quality::STEREO;
   return Quality::DEFAULT;
+}
+
+/* static */
+string Freebox::StrSource (enum Source s)
+{
+  switch (s)
+  {
+    case Source::AUTO : return "";
+    case Source::IPTV : return "iptv";
+    case Source::DVB  : return "dvb";
+    default           : return "";
+  }
+}
+
+/* static */
+string Freebox::StrQuality (enum Quality q)
+{
+  switch (q)
+  {
+    case Quality::AUTO   : return "auto";
+    case Quality::HD     : return "hd";
+    case Quality::SD     : return "sd";
+    case Quality::LD     : return "ld";
+    case Quality::STEREO : return "3d";
+    default              : return "";
+  }
 }
 
 /* static */
@@ -572,6 +599,7 @@ string Freebox::Event::Native (int c)
     case  5: return "Documentaire";
     case  6: return "Théâtre";
     case  7: return "Opéra";
+    case  8: return "Ballet";
     case  9: return "Variétés";
     case 10: return "Magazine";
     case 11: return "Jeunesse";
@@ -599,6 +627,7 @@ int Freebox::Event::Colors (int c)
     case  5: return 0x23; // Documentaire
     case  6: return 0x70; // Théâtre
     case  7: return 0x65; // Opéra
+    case  8: return 0x66; // Ballet
     case  9: return 0x32; // Variétés
     case 10: return 0x81; // Magazine
     case 11: return 0x50; // Jeunesse
@@ -787,6 +816,26 @@ bool Freebox::ProcessChannels ()
     }
   }
 
+  {
+    Document d;
+    ifstream ifs (m_path + "source.txt");
+    IStreamWrapper wrapper (ifs);
+    d.ParseStream (wrapper);
+    if (! d.HasParseError () && d.IsObject ())
+      for (auto i = d.MemberBegin (); i != d.MemberEnd (); ++i)
+        m_tv_prefs_source.emplace (ChannelId (i->name.GetString ()), ParseSource (i->value.GetString ()));
+  }
+
+  {
+    Document d;
+    ifstream ifs (m_path + "quality.txt");
+    IStreamWrapper wrapper (ifs);
+    d.ParseStream (wrapper);
+    if (! d.HasParseError () && d.IsObject ())
+      for (auto i = d.MemberBegin (); i != d.MemberEnd (); ++i)
+        m_tv_prefs_quality.emplace (ChannelId (i->name.GetString ()), ParseQuality (i->value.GetString ()));
+  }
+
   return true;
 }
 
@@ -806,6 +855,8 @@ Freebox::Freebox (const string & path,
   m_tv_channels (),
   m_tv_source (Source (source)),
   m_tv_quality (Quality (quality)),
+  m_tv_prefs_source (),
+  m_tv_prefs_quality (),
   m_epg_queries (),
   m_epg_cache (),
   m_epg_days (0),
@@ -820,7 +871,7 @@ Freebox::Freebox (const string & path,
   XBMC->QueueNotification (QUEUE_INFO, PVR_FREEBOX_VERSION);
   SetDays (days);
   ProcessChannels ();
-  CreateThread (false);
+  CreateThread ();
 }
 
 Freebox::~Freebox ()
@@ -1116,12 +1167,73 @@ PVR_ERROR Freebox::GetChannelStreamProperties (const PVR_CHANNEL * channel, PVR_
   if (! channel || ! properties || ! count || *count < 2)
     return PVR_ERROR_INVALID_PARAMETERS;
 
+  enum Source  source  = ChannelSource  (channel->iUniqueId, true);
+  enum Quality quality = ChannelQuality (channel->iUniqueId, true);
+
   P8PLATFORM::CLockObject lock (m_mutex);
   auto f = m_tv_channels.find (channel->iUniqueId);
   if (f != m_tv_channels.end ())
-    return f->second.GetStreamProperties (m_tv_source, m_tv_quality, properties, count);
+    return f->second.GetStreamProperties (source, quality, properties, count);
 
   return PVR_ERROR_NO_ERROR;
+}
+
+enum Freebox::Source Freebox::ChannelSource (unsigned int id, bool fallback)
+{
+  P8PLATFORM::CLockObject lock (m_mutex);
+  auto f = m_tv_prefs_source.find (id);
+  return f != m_tv_prefs_source.end () ? f->second : (fallback ? m_tv_source : Source::DEFAULT);
+}
+
+void Freebox::SetChannelSource (unsigned int id, enum Source source)
+{
+  P8PLATFORM::CLockObject lock (m_mutex);
+  switch (source)
+  {
+    case Source::AUTO : m_tv_prefs_source.erase (id); break;
+    case Source::IPTV : m_tv_prefs_source.insert_or_assign (id, Source::IPTV); break;
+    case Source::DVB  : m_tv_prefs_source.insert_or_assign (id, Source::DVB);  break;
+  }
+
+  Document d (kObjectType);
+  auto & a = d.GetAllocator ();
+  for (auto & i : m_tv_prefs_source)
+    d.AddMember (Value ("uuid-webtv-" + to_string (i.first), a), Value (StrSource (i.second), a), a);
+
+  ofstream ofs (m_path + "source.txt");
+  OStreamWrapper wrapper (ofs);
+  Writer<OStreamWrapper> writer (wrapper);
+  d.Accept (writer);
+}
+
+enum Freebox::Quality Freebox::ChannelQuality (unsigned int id, bool fallback)
+{
+  P8PLATFORM::CLockObject lock (m_mutex);
+  auto f = m_tv_prefs_quality.find (id);
+  return f != m_tv_prefs_quality.end () ? f->second : (fallback ? m_tv_quality : Quality::DEFAULT);
+}
+
+void Freebox::SetChannelQuality (unsigned int id, enum Quality quality)
+{
+  P8PLATFORM::CLockObject lock (m_mutex);
+  switch (quality)
+  {
+    case Quality::AUTO   : m_tv_prefs_quality.erase (id); break;
+    case Quality::HD     : m_tv_prefs_quality.insert_or_assign (id, Quality::HD);     break;
+    case Quality::SD     : m_tv_prefs_quality.insert_or_assign (id, Quality::SD);     break;
+    case Quality::LD     : m_tv_prefs_quality.insert_or_assign (id, Quality::LD);     break;
+    case Quality::STEREO : m_tv_prefs_quality.insert_or_assign (id, Quality::STEREO); break;
+  }
+
+  Document d (kObjectType);
+  auto & a = d.GetAllocator ();
+  for (auto & i : m_tv_prefs_quality)
+    d.AddMember (Value ("uuid-webtv-" + to_string (i.first), a), Value (StrQuality (i.second), a), a);
+
+  ofstream ofs (m_path + "quality.txt");
+  OStreamWrapper wrapper (ofs);
+  Writer<OStreamWrapper> writer (wrapper);
+  d.Accept (writer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1859,6 +1971,10 @@ PVR_ERROR Freebox::DeleteTimer (const PVR_TIMER & timer, bool force)
   return PVR_ERROR_NO_ERROR;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+// H O O K S ///////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+
 int freebox_dialog_select (const vector<long> & v, int selected = -1)
 {
   // Localize labels.
@@ -1875,7 +1991,8 @@ int freebox_dialog_select (const vector<long> & v, int selected = -1)
   return r;
 }
 
-int freebox_dialog_source (int selected = -1)
+/* static */
+enum Freebox::Source Freebox::DialogSource (enum Source selected)
 {
   static const vector<long> LABELS =
   {
@@ -1887,10 +2004,11 @@ int freebox_dialog_source (int selected = -1)
     PVR_FREEBOX_STRING_CHANNEL_SOURCE_DVB
   };
 
-  return freebox_dialog_select (LABELS, selected);
+  return (Source) freebox_dialog_select (LABELS, (int) selected);
 }
 
-int freebox_dialog_quality (int selected = -1)
+/* static */
+enum Freebox::Quality Freebox::DialogQuality (enum Quality selected)
 {
   static const vector<long> LABELS =
   {
@@ -1904,7 +2022,7 @@ int freebox_dialog_quality (int selected = -1)
     PVR_FREEBOX_STRING_CHANNEL_QUALITY_3D
   };
 
-  return freebox_dialog_select (LABELS, selected);
+  return (Quality) freebox_dialog_select (LABELS, (int) selected);
 }
 
 PVR_ERROR Freebox::MenuHook (const PVR_MENUHOOK & hook, const PVR_MENUHOOK_DATA & data)
@@ -1915,10 +2033,8 @@ PVR_ERROR Freebox::MenuHook (const PVR_MENUHOOK & hook, const PVR_MENUHOOK_DATA 
     {
       const PVR_CHANNEL & channel = data.data.channel;
 
-      cout << "PVR_FREEBOX_MENUHOOK_CHANNEL_SOURCE" << ' '
-           << '"' << channel.strChannelName << '"' << ' ' << '[' << channel.iUniqueId << ']' << endl;
-
-      int source = freebox_dialog_source ();
+      unsigned int id = channel.iUniqueId;
+      SetChannelSource (id, DialogSource (ChannelSource (id, false)));
 
       return PVR_ERROR_NO_ERROR;
     }
@@ -1927,10 +2043,8 @@ PVR_ERROR Freebox::MenuHook (const PVR_MENUHOOK & hook, const PVR_MENUHOOK_DATA 
     {
       const PVR_CHANNEL & channel = data.data.channel;
 
-      cout << "PVR_FREEBOX_MENUHOOK_CHANNEL_QUALITY" << ' '
-           << '"' << channel.strChannelName << '"' << ' ' << '[' << channel.iUniqueId << ']' << endl;
-
-      int quality = freebox_dialog_quality ();
+      unsigned int id = channel.iUniqueId;
+      SetChannelQuality (id, DialogQuality (ChannelQuality (id, false)));
 
       return PVR_ERROR_NO_ERROR;
     }
