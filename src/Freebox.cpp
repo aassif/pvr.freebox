@@ -985,7 +985,6 @@ void Freebox::ProcessEvent (const Event & e, EPG_EVENT_STATE state)
   }
   tag.iParentalRating     = 0;
   tag.iStarRating         = 0;
-  tag.bNotify             = false;
   tag.iSeriesNumber       = e.season;
   tag.iEpisodeNumber      = e.episode;
   tag.iEpisodePartNumber  = 0;
