@@ -269,6 +269,9 @@ bool Freebox::StartSession ()
     string file = m_path + "app_token.txt";
     if (! XBMC->FileExists (file.c_str (), false))
     {
+#ifndef HOST_NAME_MAX
+#define HOST_NAME_MAX _POSIX_HOST_NAME_MAX
+#endif
       char hostname [HOST_NAME_MAX + 1];
       gethostname (hostname, HOST_NAME_MAX);
       cout << "StartSession: hostname: " << hostname << endl;

@@ -349,6 +349,7 @@ long long SeekRecordedStream (long long, int) {return 0;}
 long long LengthRecordedStream () {return 0;}
 void DemuxReset () {}
 void DemuxFlush () {}
+void FillBuffer (bool) {}
 int ReadLiveStream (unsigned char *, unsigned int) {return 0;}
 long long SeekLiveStream (long long, int) {return -1;}
 long long LengthLiveStream () {return -1;}
