@@ -1112,6 +1112,7 @@ void * Freebox::Process ()
           case FULL    : ProcessFull    (json["result"]); break;
           case CHANNEL : ProcessChannel (json["result"], q.channel); break;
           case EVENT   : ProcessEvent   (json["result"], q.channel, q.date, EPG_EVENT_UPDATED); break;
+          default      : break;
         }
       }
     }
@@ -1195,6 +1196,7 @@ void Freebox::SetChannelSource (unsigned int id, enum Source source)
     case Source::AUTO : m_tv_prefs_source.erase (id); break;
     case Source::IPTV : m_tv_prefs_source.insert_or_assign (id, Source::IPTV); break;
     case Source::DVB  : m_tv_prefs_source.insert_or_assign (id, Source::DVB);  break;
+    default           : break;
   }
 
   Document d (kObjectType);
@@ -1225,6 +1227,7 @@ void Freebox::SetChannelQuality (unsigned int id, enum Quality quality)
     case Quality::SD     : m_tv_prefs_quality.insert_or_assign (id, Quality::SD);     break;
     case Quality::LD     : m_tv_prefs_quality.insert_or_assign (id, Quality::LD);     break;
     case Quality::STEREO : m_tv_prefs_quality.insert_or_assign (id, Quality::STEREO); break;
+    default              : break;
   }
 
   Document d (kObjectType);
