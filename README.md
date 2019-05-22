@@ -1,10 +1,12 @@
 # Extension PVR Kodi pour Freebox TV
 
-Compatible Freebox Revolution.
+Compatible Freebox Revolution, Freebox Mini 4K et Freebox Delta.
 
-- Chaînes IPTV.
-- Chaînes TNT.
+- Chaînes TV (IPTV + TNT).
 - Guide des programmes.
-- Lecture des enregistrements (autorisation requise).
-- Programmation des enregistrements (autorisation requise).
+
+Après autorisation via l'interface tactile du Freebox Server :
+
+- Lecture des enregistrements.
+- Programmation des enregistrements.
 
