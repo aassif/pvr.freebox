@@ -29,6 +29,9 @@
 #include <algorithm>
 #include <numeric> // accumulate
 
+#undef major
+#undef minor
+
 #include "p8-platform/util/StringUtils.h"
 
 #include "client.h"
