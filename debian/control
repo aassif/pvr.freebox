@@ -1,9 +1,9 @@
 Source: kodi-pvr-freebox
 Priority: extra
 Maintainer: Aassif Benassarou <aa@bns.sr>
-Build-Depends: debhelper (>= 9.0.0), cmake, libkodiplatform-dev (>= 16.0.0),
-               kodi-addon-dev, zlib1g-dev, rapidjson-dev
-Standards-Version: 3.9.5
+Build-Depends: debhelper (>= 9.0.0), cmake, libkodiplatform-dev (>= 17.1.0),
+               kodi-addon-dev, zlib1g-dev, rapidjson-dev, libssl-dev
+Standards-Version: 3.9.8
 Section: libs
 
 Package: kodi-pvr-freebox
