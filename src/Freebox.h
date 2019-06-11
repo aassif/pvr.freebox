@@ -56,6 +56,8 @@
 #define PVR_FREEBOX_STRING_CHANNEL_QUALITY_LD   30018
 #define PVR_FREEBOX_STRING_CHANNEL_QUALITY_3D   30019
 
+#undef DELETE
+
 template <class K>
 class Index
 {
