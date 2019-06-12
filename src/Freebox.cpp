@@ -272,8 +272,12 @@ bool Freebox::StartSession ()
     string file = m_path + "app_token.txt";
     if (! XBMC->FileExists (file.c_str (), false))
     {
-#ifndef HOST_NAME_MAX
-#define HOST_NAME_MAX _POSIX_HOST_NAME_MAX
+#ifdef _WIN32
+  #define HOST_NAME_MAX 256
+#else
+  #ifdef __APPLE__
+    #define HOST_NAME_MAX _POSIX_HOST_NAME_MAX
+  #endif
 #endif
       char hostname [HOST_NAME_MAX + 1];
       gethostname (hostname, HOST_NAME_MAX);

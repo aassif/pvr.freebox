@@ -22,6 +22,10 @@ include_directories(${kodiplatform_INCLUDE_DIRS}
 
 set(DEPLIBS ${p8-platform_LIBRARIES} ${OPENSSL_LIBRARIES} ${ZLIB_LIBRARIES})
 
+if(WIN32)
+  list(APPEND DEPLIBS ws2_32)
+endif()
+
 set(FREEBOX_SOURCES src/client.cpp
                     src/Freebox.cpp)
 
