@@ -756,8 +756,17 @@ bool Freebox::ProcessChannels ()
 
   static const ConflictComparator comparator;
 
+#if __cplusplus >= 201703L
   for (auto & [major, v1] : conflicts_by_major)
+#else
+  for (auto & it : conflicts_by_major)
+#endif
   {
+#if __cplusplus < 201703L
+    int      major = it.first;
+    Conflicts & v1 = it.second;
+#endif
+
     sort (v1.begin (), v1.end (), comparator);
 
     for (size_t j = 1; j < v1.size (); ++j)
@@ -770,8 +779,17 @@ bool Freebox::ProcessChannels ()
     v1.erase (v1.begin () + 1, v1.end ());
   }
 
+#if __cplusplus >= 201703L
   for (auto & [uuid, v1] : conflicts_by_uuid)
+#else
+  for (auto & it : conflicts_by_uuid)
+#endif
   {
+#if __cplusplus < 201703L
+    const string & uuid = it.first;
+    Conflicts    & v1   = it.second;
+#endif
+
     if (! v1.empty ())
     {
       sort (v1.begin (), v1.end (), comparator);
@@ -797,9 +815,17 @@ bool Freebox::ProcessChannels ()
     cout << i.first << " : " << StrNumbers (i.second) << endl;
 #endif
 
-  for (auto i : conflicts_by_major)
+#if __cplusplus >= 201703L
+  for (auto & [major, q] : conflicts_by_major)
+#else
+  for (auto & it : conflicts_by_major)
+#endif
   {
-    const vector<Conflict> & q = i.second;
+#if __cplusplus < 201703L
+    int           major = it.first;
+    const Conflicts & q = it.second;
+#endif
+
     if (! q.empty ())
     {
       const Conflict & ch = q.front ();
@@ -1201,8 +1227,8 @@ void Freebox::SetChannelSource (unsigned int id, enum Source source)
   switch (source)
   {
     case Source::AUTO : m_tv_prefs_source.erase (id); break;
-    case Source::IPTV : m_tv_prefs_source.insert_or_assign (id, Source::IPTV); break;
-    case Source::DVB  : m_tv_prefs_source.insert_or_assign (id, Source::DVB);  break;
+    case Source::IPTV : m_tv_prefs_source [id] = Source::IPTV; break;
+    case Source::DVB  : m_tv_prefs_source [id] = Source::DVB;  break;
     default           : break;
   }
 
@@ -1230,10 +1256,10 @@ void Freebox::SetChannelQuality (unsigned int id, enum Quality quality)
   switch (quality)
   {
     case Quality::AUTO   : m_tv_prefs_quality.erase (id); break;
-    case Quality::HD     : m_tv_prefs_quality.insert_or_assign (id, Quality::HD);     break;
-    case Quality::SD     : m_tv_prefs_quality.insert_or_assign (id, Quality::SD);     break;
-    case Quality::LD     : m_tv_prefs_quality.insert_or_assign (id, Quality::LD);     break;
-    case Quality::STEREO : m_tv_prefs_quality.insert_or_assign (id, Quality::STEREO); break;
+    case Quality::HD     : m_tv_prefs_quality [id] = Quality::HD;     break;
+    case Quality::SD     : m_tv_prefs_quality [id] = Quality::SD;     break;
+    case Quality::LD     : m_tv_prefs_quality [id] = Quality::LD;     break;
+    case Quality::STEREO : m_tv_prefs_quality [id] = Quality::STEREO; break;
     default              : break;
   }
 
@@ -1298,7 +1324,16 @@ PVR_ERROR Freebox::GetRecordings (ADDON_HANDLE handle, bool deleted) const
 {
   P8PLATFORM::CLockObject lock (m_mutex);
 
+#if __cplusplus >= 201703L
   for (auto & [id, r] : m_recordings)
+#else
+  for (auto & it : m_recordings)
+#endif
+  {
+#if __cplusplus < 201703L
+    const Recording & r = it.second;
+#endif
+
     if (! r.secure)
     {
       PVR_RECORDING recording;
@@ -1316,6 +1351,7 @@ PVR_ERROR Freebox::GetRecordings (ADDON_HANDLE handle, bool deleted) const
 
       PVR->TransferRecordingEntry (handle, &recording);
     }
+  }
 
   return PVR_ERROR_NO_ERROR;
 }
@@ -1578,8 +1614,17 @@ PVR_ERROR Freebox::GetTimers (ADDON_HANDLE handle) const
   P8PLATFORM::CLockObject lock (m_mutex);
   //cout << "Freebox::GetTimers" << endl;
 
+#if __cplusplus >= 201703L
   for (auto & [id, g] : m_generators)
+#else
+  for (auto & it : m_generators)
+#endif
   {
+#if __cplusplus < 201703L
+    int              id = it.first;
+    const Generator & g = it.second;
+#endif
+
     PVR_TIMER timer;
     memset (&timer, 0, sizeof (PVR_TIMER));
 
@@ -1611,8 +1656,17 @@ PVR_ERROR Freebox::GetTimers (ADDON_HANDLE handle) const
     PVR->TransferTimerEntry (handle, &timer);
   }
 
+#if __cplusplus >= 201703L
   for (auto & [id, t] : m_timers)
+#else
+  for (auto & it : m_timers)
+#endif
   {
+#if __cplusplus < 201703L
+    int          id = it.first;
+    const Timer & t = it.second;
+#endif
+
     PVR_TIMER timer;
     memset (&timer, 0, sizeof (PVR_TIMER));
 
