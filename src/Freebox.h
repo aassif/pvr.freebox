@@ -74,8 +74,13 @@ class Index
     inline
     int operator() (const K & key)
     {
+#if __cplusplus >= 201703L
       auto [i, success] = m_map.emplace (key, m_id);
       return success ? m_id++ : i->second;
+#else
+      auto r = m_map.emplace (key, m_id);
+      return r.second ? m_id++ : r.first->second;
+#endif
     }
 };
 
