@@ -2,7 +2,9 @@ project(openssl)
 
 cmake_minimum_required(VERSION 2.8)
 
-include(ExternalProject)
+if(NOT CPU AND CMAKE_SYSTEM_PROCESSOR)
+  set(CPU ${CMAKE_SYSTEM_PROCESSOR})
+endif()
 
 if(CORE_SYSTEM_NAME MATCHES "android")
   if(CPU MATCHES arm64)
@@ -12,62 +14,49 @@ if(CORE_SYSTEM_NAME MATCHES "android")
   elseif(CPU MATCHES i686)
     set(OPENSSL_TARGET android-x86)
   endif()
-  set(configure_command CC=${CMAKE_C_COMPILER} AR=${CMAKE_AR} RANLIB=${CMAKE_RANLIB} INSTALL_PREFIX="" ANDROID_NDK=${TOOLCHAIN}
-                        <SOURCE_DIR>/Configure no-shared zlib
-                        --prefix=${OUTPUT_DIR}
-                        --with-zlib-include=${OUTPUT_DIR}/include
-                        --with-zlib-lib=${OUTPUT_DIR}/lib
-                        ${OPENSSL_TARGET} ${CMAKE_C_FLAGS} -I${OUTPUT_DIR}/include
-      && sed -ie "s|apps test||" ${PROJECT_SOURCE_DIR}/Makefile)
-endif()
-
-if(CORE_SYSTEM_NAME MATCHES "linux" OR CORE_SYSTEM_NAME MATCHES "rbpi")
-  if(CMAKE_TOOLCHAIN_FILE)
-    if(CPU MATCHES aarch64 OR CPU MATCHES arm64 OR CPU STREQUAL x86_64 OR ARCH MATCHES aarch64 OR ARCH STREQUAL x86_64)
-      set(bitness 64)
-    elseif(CPU MATCHES arm OR CPU MATCHES "i.86" OR ARCH MATCHES arm OR CPU MATCHES cortex-a7 OR CPU MATCHES arm1176jzf-s)
-      set(bitness 32)
-    else()
-      message(WARNING "Could not detect bitness for CPU ${CPU} - assuming 32bit")
-      set(bitness 32)
-    endif()
-
-    set(configure_command CC=${CMAKE_C_COMPILER} AR=${CMAKE_AR} INSTALL_PREFIX=""
-                          <SOURCE_DIR>/Configure no-shared zlib
-                          --prefix=${OUTPUT_DIR}
-                          --with-zlib-include=${OUTPUT_DIR}/include
-                          --with-zlib-lib=${OUTPUT_DIR}/lib
-                          linux-generic${bitness} ${CMAKE_C_FLAGS} -I${OUTPUT_DIR}/include
-        && sed -ie "s|apps test||" ${PROJECT_SOURCE_DIR}/Makefile)
+elseif(CORE_SYSTEM_NAME MATCHES "linux" OR CORE_SYSTEM_NAME MATCHES "rbpi")
+  if(CPU MATCHES aarch64 OR CPU MATCHES arm64 OR CPU STREQUAL x86_64 OR ARCH MATCHES aarch64 OR ARCH STREQUAL x86_64)
+    set(OPENSSL_TARGET linux-generic64)
+  elseif(CPU MATCHES arm OR CPU MATCHES "i.86" OR ARCH MATCHES arm OR CPU MATCHES cortex-a7 OR CPU MATCHES arm1176jzf-s)
+    set(OPENSSL_TARGET linux-generic32)
   else()
-    set(configure_command MACHINE=${PLATFORM} CC=${CMAKE_C_COMPILER} AR=${CMAKE_AR} <SOURCE_DIR>/config no-shared zlib --prefix=${OUTPUT_DIR})
-#        && sed -ie "s|apps test||" ${PROJECT_SOURCE_DIR}/Makefile)
+    message(WARNING "Could not detect bitness for CPU ${CPU} - assuming 32bit")
+    set(OPENSSL_TARGET linux-generic32)
   endif()
-endif()
-
-if(CORE_SYSTEM_NAME MATCHES "ios")
-  set(configure_command CC=${CMAKE_COMPILER} AR=${CMAKE_AR} INSTALL_PREFIX=""
-                        <SOURCE_DIR>/Configure iphoneos-cross no-shared zlib no-asm
-                        --prefix=${OUTPUT_DIR}
-      && sed -E -ie "s|^CFLAGS=-|CFLAGS=${CMAKE_C_FLAGS} -|" ${PROJECT_SOURCE_DIR}/Makefile
-      && sed -ie "s|-isysroot $.CROSS_TOP./SDKs/$.CROSS_SDK. ||" ${PROJECT_SOURCE_DIR}/Makefile
-      && sed -ie "s|apps test||" ${PROJECT_SOURCE_DIR}/Makefile
-      && sed -ie "s|static volatile sig_atomic_t intr_signal|static volatile intr_signal|" ${PROJECT_SOURCE_DIR}/crypto/ui/ui_openssl.c)
-endif()
-
-if(CORE_SYSTEM_NAME MATCHES "osx")
+elseif(CORE_SYSTEM_NAME MATCHES "ios" OR CORE_SYSTEM_NAME MATCHES "darwin_embedded")
+  set(OPENSSL_TARGET iphoneos-cross)
+elseif(CORE_SYSTEM_NAME MATCHES "osx")
   if(CMAKE_SIZEOF_VOID_P EQUAL 8)
-    set(configure_command <SOURCE_DIR>/Configure darwin64-x86_64-cc zlib no-asm no-shared --prefix=${OUTPUT_DIR}
-        && sed -ie "s|CC= /usr/bin/gcc-4.2|CC= ${CMAKE_COMPILER}|" ${PROJECT_SOURCE_DIR}/Makefile
-        && sed -E -ie "s|^CFLAGS=-|CFLAGS=${CMAKE_C_FLAGS} -|" ${PROJECT_SOURCE_DIR}/Makefile
-        && sed -ie "s|apps test||" ${PROJECT_SOURCE_DIR}/Makefile)
+    set(OPENSSL_TARGET darwin64-x86_64-cc)
   else()
-    set(configure_command <SOURCE_DIR>/Configure darwin-x86-cc zlib no-asm no-shared --prefix=${OUTPUT_DIR}
-        && sed -ie "s|CC= /usr/bin/gcc-4.2|CC= ${CMAKE_COMPILER}|" ${PROJECT_SOURCE_DIR}/Makefile
-        && sed -E -ie "s|^CFLAGS=-|CFLAGS=${CMAKE_C_FLAGS} -|" ${PROJECT_SOURCE_DIR}/Makefile
-        && sed -ie "s|apps test||" ${PROJECT_SOURCE_DIR}/Makefile)
+    set(OPENSSL_TARGET darwin-i386-cc)
   endif()
 endif()
+
+list(APPEND configure_command ${CMAKE_COMMAND} -E env)
+list(APPEND configure_command ANDROID_NDK=${TOOLCHAIN})
+list(APPEND configure_command AR=${CMAKE_AR})
+list(APPEND configure_command CC=${CMAKE_C_COMPILER})
+list(APPEND configure_command CFLAGS=${CMAKE_C_FLAGS})
+list(APPEND configure_command CPPFLAGS=${CMAKE_CPP_FLAGS})
+list(APPEND configure_command CXX=${CMAKE_CXX_COMPILER})
+list(APPEND configure_command CXXFLAGS=${CMAKE_CXX_FLAGS})
+list(APPEND configure_command INSTALL_PREFIX=)
+list(APPEND configure_command LDFLAGS=${CMAKE_LD_FLAGS})
+list(APPEND configure_command RANLIB=${CMAKE_RANLIB})
+list(APPEND configure_command <SOURCE_DIR>/Configure)
+list(APPEND configure_command ${OPENSSL_TARGET})
+list(APPEND configure_command no-shared zlib)
+if(PLATFORM MATCHES appletvos)
+  list(APPEND configure_command no-async)
+endif()
+list(APPEND configure_command --prefix=${OUTPUT_DIR})
+list(APPEND configure_command --with-zlib-include=${OUTPUT_DIR}/include)
+list(APPEND configure_command --with-zlib-lib=${OUTPUT_DIR}/lib)
+list(APPEND configure_command COMMAND sed -ie "s|PROGRAMS=|PROGRAMS=#|" ${PROJECT_SOURCE_DIR}/Makefile)
+list(APPEND configure_command COMMAND sed -ie "s|-isysroot $.CROSS_TOP./SDKs/$.CROSS_SDK. ||" ${PROJECT_SOURCE_DIR}/Makefile)
+
+include(ExternalProject)
 
 externalproject_add(openssl
                     SOURCE_DIR ${CMAKE_SOURCE_DIR}
@@ -76,5 +65,4 @@ externalproject_add(openssl
                     INSTALL_COMMAND ""
                     BUILD_IN_SOURCE 1)
 
-install(CODE "execute_process(COMMAND find ${CMAKE_SOURCE_DIR} -name Makefile -exec sed -ie s|INSTALL_PREFIX|stupidshit|g {} \;)
-              execute_process(COMMAND make install_sw WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})")
+install(CODE "execute_process(COMMAND make install_sw WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})")
