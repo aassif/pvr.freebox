@@ -24,8 +24,8 @@
 #include <map>
 #include <queue>
 #include <algorithm> // find_if
-#include "libXBMC_pvr.h"
-#include "libKODI_guilib.h"
+#include "kodi/libXBMC_pvr.h"
+#include "kodi/libKODI_guilib.h"
 #include "p8-platform/os.h"
 #include "p8-platform/threads/threads.h"
 #include "rapidjson/document.h"
