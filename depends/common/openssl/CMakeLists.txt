@@ -1,6 +1,5 @@
+cmake_minimum_required(VERSION 3.5)
 project(openssl)
-
-cmake_minimum_required(VERSION 2.8)
 
 if(NOT CPU AND CMAKE_SYSTEM_PROCESSOR)
   set(CPU ${CMAKE_SYSTEM_PROCESSOR})
