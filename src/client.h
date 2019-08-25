@@ -20,9 +20,9 @@
  *
  */
 
-#include "libXBMC_addon.h"
-#include "libXBMC_pvr.h"
-#include "libKODI_guilib.h"
+#include "kodi/libXBMC_addon.h"
+#include "kodi/libXBMC_pvr.h"
+#include "kodi/libKODI_guilib.h"
 
 extern ADDON::CHelper_libXBMC_addon * XBMC;
 extern CHelper_libXBMC_pvr          * PVR;
