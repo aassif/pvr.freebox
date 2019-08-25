@@ -1,6 +1,5 @@
+cmake_minimum_required(VERSION 3.5)
 project(openssl)
-
-cmake_minimum_required(VERSION 2.8)
 
 include(CheckSymbolExists)
 check_symbol_exists(_X86_ "Windows.h" _X86_)
