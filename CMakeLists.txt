@@ -31,6 +31,4 @@ set(FREEBOX_HEADERS src/client.h
 
 build_addon(pvr.freebox FREEBOX DEPLIBS)
 
-set_property(TARGET pvr.freebox PROPERTY CXX_STANDARD 17)
-
 include(CPack)
