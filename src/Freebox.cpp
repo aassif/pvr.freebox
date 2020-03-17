@@ -1021,9 +1021,17 @@ void Freebox::ProcessEvent (const Event & e, EPG_EVENT_STATE state)
   }
   tag.iParentalRating     = 0;
   tag.iStarRating         = 0;
-  tag.iSeriesNumber       = e.season;
-  tag.iEpisodeNumber      = e.episode;
-  tag.iEpisodePartNumber  = 0;
+  if (e.season == 0 && e.episode == 0)
+  {
+    tag.iSeriesNumber       = EPG_TAG_INVALID_SERIES_EPISODE;
+    tag.iEpisodeNumber      = EPG_TAG_INVALID_SERIES_EPISODE;
+  }
+  else
+  {
+    tag.iSeriesNumber       = e.season;
+    tag.iEpisodeNumber      = e.episode;
+  }
+  tag.iEpisodePartNumber  = EPG_TAG_INVALID_SERIES_EPISODE;
   tag.strEpisodeName      = PVR_FREEBOX_C_STR (e.subtitle);
   tag.iFlags              = EPG_TAG_FLAG_UNDEFINED;
 
@@ -1338,6 +1346,8 @@ PVR_ERROR Freebox::GetRecordings (ADDON_HANDLE handle, bool deleted) const
     {
       PVR_RECORDING recording;
       memset (&recording, 0, sizeof (PVR_RECORDING));
+      recording.iSeriesNumber = PVR_RECORDING_INVALID_SERIES_EPISODE;
+      recording.iEpisodeNumber = PVR_RECORDING_INVALID_SERIES_EPISODE;
 
       recording.recordingTime = r.start;
       recording.iDuration     = r.end - r.start;
