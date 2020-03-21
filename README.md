@@ -12,3 +12,11 @@ Après autorisation via l'interface tactile du Freebox Server :
 - Lecture des enregistrements.
 - Programmation des enregistrements.
 
+---
+
+Les chaînes non disponibles lors de l'installation sont désactivées pour faciliter le zapping.
+
+Si de nouvelles chaînes deviennent disponibles, il faut les ré-activer dans les paramètres de Kodi :
+"Paramètres" > "Enregistreur / TV" > "Général" > "Gestionnaire de chaînes".
+
+Une autre façon de faire, consiste à cliquer "Effacer les données".
