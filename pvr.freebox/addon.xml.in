@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <addon
   id="pvr.freebox"
-  version="2.2.1"
+  version="2.2.2"
   name="PVR Freebox TV"
   provider-name="aassif">
   <requires>@ADDON_DEPENDS@</requires>
@@ -16,5 +16,8 @@
     <disclaimer lang="fr_FR">Logiciel en cours d'élaboration !</disclaimer>
     <disclaimer lang="en_GB">This is unstable software!</disclaimer>
     <platform>@PLATFORM@</platform>
+    <assets>
+      <icon>icon.png</icon>
+    </assets>
   </extension>
 </addon>
