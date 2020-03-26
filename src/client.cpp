@@ -357,6 +357,7 @@ PVR_ERROR SetRecordingPlayCount (const PVR_RECORDING &, int) {return PVR_ERROR_N
 PVR_ERROR SetRecordingLastPlayedPosition (const PVR_RECORDING &, int) {return PVR_ERROR_NOT_IMPLEMENTED;}
 int GetRecordingLastPlayedPosition (const PVR_RECORDING &) {return -1;}
 PVR_ERROR GetRecordingEdl (const PVR_RECORDING &, PVR_EDL_ENTRY [], int *) {return PVR_ERROR_NOT_IMPLEMENTED;};
+PVR_ERROR GetRecordingSize(const PVR_RECORDING* recording, int64_t* sizeInBytes) { return PVR_ERROR_NOT_IMPLEMENTED; }
 void DemuxAbort () {}
 bool IsTimeshifting () {return false;}
 DemuxPacket * DemuxRead () {return NULL;}
