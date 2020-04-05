@@ -4,7 +4,7 @@
 
 Compatible Freebox Revolution, Freebox Mini 4K et Freebox Delta.
 
-- Chaînes TV (IPTV + TNT). TF1/M6 uniquement via TNT.
+- Chaînes TV (IPTV + TNT).
 - Guide des programmes.
 
 Après autorisation via l'interface tactile du Freebox Server :
@@ -12,3 +12,4 @@ Après autorisation via l'interface tactile du Freebox Server :
 - Lecture des enregistrements.
 - Programmation des enregistrements.
 
+Plus d'informations sur la page [wiki](../../wiki).
