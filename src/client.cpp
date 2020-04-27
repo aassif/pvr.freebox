@@ -82,7 +82,7 @@ ADDON_STATUS ADDON_Create (void * callbacks, void * properties)
     return ADDON_STATUS_UNKNOWN;
   }
 
-  PVR_PROPERTIES * p = (PVR_PROPERTIES *) properties;
+  AddonProperties_PVR * p = (AddonProperties_PVR *) properties;
 
   XBMC = new CHelper_libXBMC_addon;
   if (! XBMC->RegisterMe (callbacks))
