@@ -116,3 +116,11 @@ msgctxt "#30024"
 msgid "Convert French categories into standard categories."
 msgstr ""
 
+msgctxt "#30025"
+msgid "Server"
+msgstr ""
+
+msgctxt "#30026"
+msgid "Server name or IP address."
+msgstr ""
+
