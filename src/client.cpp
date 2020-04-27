@@ -37,6 +37,7 @@ using namespace ADDON;
 #endif
 
 std::string  path;
+std::string  server   = "mafreebox.freebox.fr";
 int          delay    = 0;
 int          source   = 1;
 int          quality  = 1;
@@ -54,6 +55,7 @@ extern "C" {
 
 void ADDON_ReadSettings ()
 {
+  if (! XBMC->GetSetting ("server",   &server))   server   = "mafreebox.freebox.fr";
   if (! XBMC->GetSetting ("delay",    &delay))    delay    = 0;
   if (! XBMC->GetSetting ("source",   &source))   source   = 1;
   if (! XBMC->GetSetting ("quality",  &quality))  quality  = 1;
@@ -112,7 +114,7 @@ ADDON_STATUS ADDON_Create (void * callbacks, void * properties)
   for (PVR_MENUHOOK & h : HOOKS)
     PVR->AddMenuHook (&h);
 
-  data   = new Freebox (p->strUserPath, source, quality, p->iEpgMaxDays, extended, colors, delay);
+  data   = new Freebox (p->strUserPath, server, source, quality, p->iEpgMaxDays, extended, colors, delay);
   status = ADDON_STATUS_OK;
   init   = true;
 
@@ -135,6 +137,12 @@ ADDON_STATUS ADDON_SetSetting (const char * name, const void * value)
 {
   if (data)
   {
+    if (! strcmp (name, "server"))
+    {
+      data->SetServer ((char *) value);
+      return ADDON_STATUS_NEED_RESTART;
+    }
+
     if (! strcmp (name, "delay"))
       data->SetDelay (*((int *) value));
 

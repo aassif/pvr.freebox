@@ -316,10 +316,11 @@ class Freebox :
     };
 
   public:
-    Freebox (const std::string & path, int source, int quality, int days, bool extended, bool colors, int delay);
+    Freebox (const std::string & path, const std::string & server, int source, int quality, int days, bool extended, bool colors, int delay);
     virtual ~Freebox ();
 
     // Freebox Server.
+    void SetServer (const std::string &);
     std::string GetServer () const;
 
     // Source setting.

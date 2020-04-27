@@ -3,6 +3,11 @@
   <section id="section" label="30002" description="30002">
     <category id="category" label="30002" description="30002">
       <group id="pvr.freebox.general" label="30002">
+        <setting id="server" type="string" label="30025" help="30026">
+          <level>2</level>
+          <default>mafreebox.freebox.fr</default>
+          <control type="edit" format="string" />
+        </setting>
         <setting id="delay" type="integer" label="30003" help="30004">
           <level>0</level>
           <default>10</default>

@@ -876,6 +876,7 @@ bool Freebox::ProcessChannels ()
 }
 
 Freebox::Freebox (const string & path,
+                  const string & server,
                   int source,
                   int quality,
                   int days,
@@ -883,7 +884,7 @@ Freebox::Freebox (const string & path,
                   bool colors,
                   int delay) :
   m_path (path),
-  m_server ("mafreebox.freebox.fr"),
+  m_server (server),
   m_delay (delay),
   m_app_token (),
   m_track_id (),
@@ -914,6 +915,12 @@ Freebox::~Freebox ()
 {
   StopThread ();
   CloseSession ();
+}
+
+void Freebox::SetServer (const string & server)
+{
+  P8PLATFORM::CLockObject lock (m_mutex);
+  m_server = server;
 }
 
 string Freebox::GetServer () const
