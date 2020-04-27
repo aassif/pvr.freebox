@@ -364,19 +364,19 @@ class Freebox :
     virtual void * Process ();
 
     // H T T P /////////////////////////////////////////////////////////////////
-    bool HTTP   (const std::string & custom,
-                 const std::string & url,
-                 const rapidjson::Document &,
-                 rapidjson::Document *, rapidjson::Type = rapidjson::kObjectType) const;
-    bool GET    (const std::string & url,
-                 rapidjson::Document *, rapidjson::Type = rapidjson::kObjectType) const;
-    bool POST   (const std::string & url,
-                 const rapidjson::Document &,
-                 rapidjson::Document *, rapidjson::Type = rapidjson::kObjectType) const;
-    bool PUT    (const std::string & url,
-                 const rapidjson::Document &,
-                 rapidjson::Document *, rapidjson::Type = rapidjson::kObjectType) const;
-    bool DELETE (const std::string & url, rapidjson::Document *) const;
+    bool Http       (const std::string & custom,
+                     const std::string & url,
+                     const rapidjson::Document &,
+                     rapidjson::Document *, rapidjson::Type = rapidjson::kObjectType) const;
+    bool HttpGet    (const std::string & url,
+                     rapidjson::Document *, rapidjson::Type = rapidjson::kObjectType) const;
+    bool HttpPost   (const std::string & url,
+                     const rapidjson::Document &,
+                     rapidjson::Document *, rapidjson::Type = rapidjson::kObjectType) const;
+    bool HttpPut    (const std::string & url,
+                     const rapidjson::Document &,
+                     rapidjson::Document *, rapidjson::Type = rapidjson::kObjectType) const;
+    bool HttpDelete (const std::string & url, rapidjson::Document *) const;
 
     // Session.
     bool StartSession ();
