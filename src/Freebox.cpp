@@ -167,7 +167,7 @@ string Freebox::StrQuality (enum Quality q)
 }
 
 /* static */
-bool Freebox::HTTP (const string & custom,
+bool Freebox::Http (const string & custom,
                     const string & path,
                     const Document & request,
                     Document * doc, Type type) const
@@ -215,33 +215,33 @@ bool Freebox::HTTP (const string & custom,
 }
 
 /* static */
-bool Freebox::GET (const string & path,
+bool Freebox::HttpGet (const string & path,
                    Document * doc, Type type) const
 {
-  return HTTP ("GET", path, Document (), doc, type);
+  return Http ("GET", path, Document (), doc, type);
 }
 
 /* static */
-bool Freebox::POST (const string & path,
+bool Freebox::HttpPost (const string & path,
                     const Document & request,
                     Document * doc, Type type) const
 {
-  return HTTP ("POST", path, request, doc, type);
+  return Http ("POST", path, request, doc, type);
 }
 
 /* static */
-bool Freebox::PUT (const string & path,
+bool Freebox::HttpPut (const string & path,
                    const Document & request,
                    Document * doc, Type type) const
 {
-  return HTTP ("PUT", path, request, doc, type);
+  return Http ("PUT", path, request, doc, type);
 }
 
 /* static */
-bool Freebox::DELETE (const string & path,
+bool Freebox::HttpDelete (const string & path,
                       Document * doc) const
 {
-  return HTTP ("DELETE", path, Document (), doc, kNullType);
+  return Http ("DELETE", path, Document (), doc, kNullType);
 }
 
 /* static */
@@ -290,7 +290,7 @@ bool Freebox::StartSession ()
       request.AddMember ("device_name", StringRef (hostname),    request.GetAllocator ());
 
       Document response;
-      if (! POST ("/api/v6/login/authorize", request, &response)) return false;
+      if (! HttpPost ("/api/v6/login/authorize", request, &response)) return false;
       m_app_token = JSON<string> (response["result"], "app_token");
       m_track_id  = JSON<int>    (response["result"], "track_id");
 
@@ -308,7 +308,7 @@ bool Freebox::StartSession ()
   }
 
   Document login;
-  if (! GET ("/api/v6/login/", &login))
+  if (! HttpGet ("/api/v6/login/", &login))
     return false;
 
   if (! login["result"]["logged_in"].GetBool ())
@@ -316,7 +316,7 @@ bool Freebox::StartSession ()
     Document d;
     string track = to_string (m_track_id);
     string url   = "/api/v6/login/authorize/" + track;
-    if (! GET (url, &d)) return false;
+    if (! HttpGet (url, &d)) return false;
     string status    = JSON<string> (d["result"], "status", "unknown");
     string challenge = JSON<string> (d["result"], "challenge");
     //string salt      = JSON<string> (d["result"], "password_salt");
@@ -332,7 +332,7 @@ bool Freebox::StartSession ()
       request.AddMember ("password", password,           request.GetAllocator ());
 
       Document response;
-      if (! POST ("/api/v6/login/session", request, &response)) return false;
+      if (! HttpPost ("/api/v6/login/session", request, &response)) return false;
       m_session_token = JSON<string> (response["result"], "session_token");
 
       cout << "StartSession: session_token: " << m_session_token << endl;
@@ -355,7 +355,7 @@ bool Freebox::CloseSession ()
   if (! m_session_token.empty ())
   {
     Document response;
-    return POST ("/api/v6/login/logout/", Document (), &response, kNullType);
+    return HttpPost ("/api/v6/login/logout/", Document (), &response, kNullType);
   }
 
   return true;
@@ -722,17 +722,17 @@ bool Freebox::ProcessChannels ()
   m_tv_channels.clear ();
 
   Document channels;
-  if (! GET ("/api/v6/tv/channels", &channels)) return false;
+  if (! HttpGet ("/api/v6/tv/channels", &channels)) return false;
 
   char * notification = XBMC->GetLocalizedString (PVR_FREEBOX_STRING_CHANNELS_LOADED);
   XBMC->QueueNotification (QUEUE_INFO, notification, channels["result"].MemberCount ());
   XBMC->FreeString (notification);
 
   //Document bouquets;
-  //GET ("/api/v6/tv/bouquets", &m_tv_bouquets);
+  //HttpGet ("/api/v6/tv/bouquets", &m_tv_bouquets);
 
   Document bouquet;
-  if (! GET ("/api/v6/tv/bouquets/freeboxtv/channels", &bouquet, kArrayType)) return false;
+  if (! HttpGet ("/api/v6/tv/bouquets/freeboxtv/channels", &bouquet, kArrayType)) return false;
 
   // Conflict list.
   typedef vector<Conflict> Conflicts;
@@ -1146,7 +1146,7 @@ void * Freebox::Process ()
       XBMC->Log (LOG_INFO, "Processing: '%s'", q.query.c_str ());
 
       Document json;
-      if (GET (q.query, &json))
+      if (HttpGet (q.query, &json))
       {
         switch (q.type)
         {
@@ -1309,7 +1309,7 @@ void Freebox::ProcessRecordings ()
   m_recordings.clear ();
 
   Document recordings;
-  if (GET ("/api/v6/pvr/finished/", &recordings, kArrayType))
+  if (HttpGet ("/api/v6/pvr/finished/", &recordings, kArrayType))
   {
     Value & result = recordings ["result"];
     for (SizeType i = 0; i < result.Size (); ++i)
@@ -1409,7 +1409,7 @@ PVR_ERROR Freebox::RenameRecording (const PVR_RECORDING & recording)
 
   // Update recording (Freebox).
   Document response;
-  if (! PUT ("/api/v6/pvr/finished/" + to_string (id), d, &response))
+  if (! HttpPut ("/api/v6/pvr/finished/" + to_string (id), d, &response))
     return PVR_ERROR_SERVER_ERROR;
 
   // Update recording (locally).
@@ -1432,7 +1432,7 @@ PVR_ERROR Freebox::DeleteRecording (const PVR_RECORDING & recording)
 
   // Delete recording (Freebox).
   Document response;
-  if (! DELETE ("/api/v6/pvr/finished/" + to_string (id), &response))
+  if (! HttpDelete ("/api/v6/pvr/finished/" + to_string (id), &response))
     return PVR_ERROR_SERVER_ERROR;
 
   // Delete recording (locally).
@@ -1478,7 +1478,7 @@ void Freebox::ProcessGenerators ()
   m_generators.clear ();
 
   Document generators;
-  if (GET ("/api/v6/pvr/generator/", &generators, kArrayType))
+  if (HttpGet ("/api/v6/pvr/generator/", &generators, kArrayType))
   {
     Value & result = generators ["result"];
     for (SizeType i = 0; i < result.Size (); ++i)
@@ -1520,7 +1520,7 @@ void Freebox::ProcessTimers ()
   m_timers.clear ();
 
   Document timers;
-  if (GET ("/api/v6/pvr/programmed/", &timers, kArrayType))
+  if (HttpGet ("/api/v6/pvr/programmed/", &timers, kArrayType))
   {
     Value & result = timers ["result"];
     for (SizeType i = 0; i < result.Size (); ++i)
@@ -1775,7 +1775,7 @@ PVR_ERROR Freebox::AddTimer (const PVR_TIMER & timer)
       {
         Document epg;
         string epg_id = "pluri_" + to_string (timer.iEpgUid);
-        if (GET ("/api/v6/tv/epg/programs/" + epg_id, &epg))
+        if (HttpGet ("/api/v6/tv/epg/programs/" + epg_id, &epg))
         {
           Event e (epg ["result"], channel, timer.startTime);
           ostringstream oss;
@@ -1803,7 +1803,7 @@ PVR_ERROR Freebox::AddTimer (const PVR_TIMER & timer)
 
       // Add timer (Freebox).
       Document response;
-      if (! POST ("/api/v6/pvr/programmed/", d, &response))
+      if (! HttpPost ("/api/v6/pvr/programmed/", d, &response))
         return PVR_ERROR_SERVER_ERROR;
 
       // Add timer (locally).
@@ -1831,7 +1831,7 @@ PVR_ERROR Freebox::AddTimer (const PVR_TIMER & timer)
 
       // Add generator (Freebox).
       Document response;
-      if (! POST ("/api/v6/pvr/generator/", d, &response))
+      if (! HttpPost ("/api/v6/pvr/generator/", d, &response))
         return PVR_ERROR_SERVER_ERROR;
 
       // Add generator (locally).
@@ -1897,7 +1897,7 @@ PVR_ERROR Freebox::UpdateTimer (const PVR_TIMER & timer)
 
       // Update timer (Freebox).
       Document response;
-      if (! PUT ("/api/v6/pvr/programmed/" + to_string (id), d, &response))
+      if (! HttpPut ("/api/v6/pvr/programmed/" + to_string (id), d, &response))
         return PVR_ERROR_SERVER_ERROR;
 
       // Update timer (locally).
@@ -1924,7 +1924,7 @@ PVR_ERROR Freebox::UpdateTimer (const PVR_TIMER & timer)
 
       // Update generated timer (Freebox).
       Document response;
-      if (! PUT ("/api/v6/pvr/programmed/" + to_string (id), d, &response))
+      if (! HttpPut ("/api/v6/pvr/programmed/" + to_string (id), d, &response))
         return PVR_ERROR_SERVER_ERROR;
 
       // Update generated timer (locally).
@@ -1951,7 +1951,7 @@ PVR_ERROR Freebox::UpdateTimer (const PVR_TIMER & timer)
 
       // Update generator (Freebox).
       Document response;
-      if (! PUT ("/api/v6/pvr/generator/" + to_string (id), d, &response))
+      if (! HttpPut ("/api/v6/pvr/generator/" + to_string (id), d, &response))
         return PVR_ERROR_SERVER_ERROR;
 
       // Update generator (locally).
@@ -1993,7 +1993,7 @@ PVR_ERROR Freebox::DeleteTimer (const PVR_TIMER & timer, bool force)
 
       // Delete timer (Freebox).
       Document response;
-      if (! DELETE ("/api/v6/pvr/programmed/" + to_string (id), &response))
+      if (! HttpDelete ("/api/v6/pvr/programmed/" + to_string (id), &response))
         return PVR_ERROR_SERVER_ERROR;
 
       // Delete timer (locally).
@@ -2020,7 +2020,7 @@ PVR_ERROR Freebox::DeleteTimer (const PVR_TIMER & timer, bool force)
 
       // Delete generator (Freebox).
       Document response;
-      if (! DELETE ("/api/v6/pvr/generator/" + to_string (id), &response))
+      if (! HttpDelete ("/api/v6/pvr/generator/" + to_string (id), &response))
         return PVR_ERROR_SERVER_ERROR;
 
       // Delete generated timers (locally).
