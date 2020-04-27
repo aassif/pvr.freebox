@@ -309,6 +309,7 @@ class Freebox :
         std::string  media;
         std::string  path;
         std::string  filename;
+        int          byte_size;
         bool         secure;
 
       public:
@@ -347,6 +348,7 @@ class Freebox :
     // R E C O R D I N G S /////////////////////////////////////////////////////
     int       GetRecordingsAmount (bool deleted) const;
     PVR_ERROR GetRecordings (ADDON_HANDLE, bool deleted) const;
+    PVR_ERROR GetRecordingSize (const PVR_RECORDING *, int64_t * size) const;
     PVR_ERROR GetRecordingStreamProperties (const PVR_RECORDING *, PVR_NAMED_VALUE *, unsigned int * count) const;
     PVR_ERROR RenameRecording (const PVR_RECORDING &);
     PVR_ERROR DeleteRecording (const PVR_RECORDING &);

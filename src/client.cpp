@@ -198,6 +198,7 @@ PVR_ERROR GetAddonCapabilities (PVR_ADDON_CAPABILITIES * caps)
   caps->bSupportsRadio                    = false;
   caps->bSupportsChannelGroups            = false;
   caps->bSupportsRecordings               = true;
+  caps->bSupportsRecordingSize            = true;
   caps->bSupportsRecordingsRename         = true;
   caps->bSupportsRecordingsUndelete       = false;
   caps->bSupportsRecordingsLifetimeChange = false;
@@ -288,6 +289,11 @@ PVR_ERROR GetRecordings (ADDON_HANDLE handle, bool deleted)
   return data ? data->GetRecordings (handle, deleted) : PVR_ERROR_SERVER_ERROR;
 }
 
+PVR_ERROR GetRecordingSize (const PVR_RECORDING * recording, int64_t * size)
+{
+  return data ? data->GetRecordingSize (recording, size) : PVR_ERROR_NOT_IMPLEMENTED;
+}
+
 PVR_ERROR GetRecordingStreamProperties (const PVR_RECORDING * recording, PVR_NAMED_VALUE * properties, unsigned int * count)
 {
   return data ? data->GetRecordingStreamProperties (recording, properties, count) : PVR_ERROR_SERVER_ERROR;
@@ -365,7 +371,6 @@ PVR_ERROR SetRecordingPlayCount (const PVR_RECORDING &, int) {return PVR_ERROR_N
 PVR_ERROR SetRecordingLastPlayedPosition (const PVR_RECORDING &, int) {return PVR_ERROR_NOT_IMPLEMENTED;}
 int GetRecordingLastPlayedPosition (const PVR_RECORDING &) {return -1;}
 PVR_ERROR GetRecordingEdl (const PVR_RECORDING &, PVR_EDL_ENTRY [], int *) {return PVR_ERROR_NOT_IMPLEMENTED;};
-PVR_ERROR GetRecordingSize(const PVR_RECORDING* recording, int64_t* sizeInBytes) { return PVR_ERROR_NOT_IMPLEMENTED; }
 void DemuxAbort () {}
 bool IsTimeshifting () {return false;}
 DemuxPacket * DemuxRead () {return NULL;}

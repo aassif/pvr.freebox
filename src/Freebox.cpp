@@ -1307,6 +1307,7 @@ Freebox::Recording::Recording (const Value & json) :
   media           (JSON<string> (json, "media")),
   path            (JSON<string> (json, "path")),
   filename        (JSON<string> (json, "filename")),
+  byte_size       (JSON<int>    (json, "byte_size")),
   secure          (JSON<bool>   (json, "secure"))
 {
 }
@@ -1370,6 +1371,22 @@ PVR_ERROR Freebox::GetRecordings (ADDON_HANDLE handle, bool deleted) const
     }
   }
 
+  return PVR_ERROR_NO_ERROR;
+}
+
+PVR_ERROR Freebox::GetRecordingSize (const PVR_RECORDING * recording, int64_t * size) const
+{
+  if (! recording || ! size)
+    return PVR_ERROR_INVALID_PARAMETERS;
+
+  int id = stoi (recording->strRecordingId);
+
+  P8PLATFORM::CLockObject lock (m_mutex);
+  auto i = m_recordings.find (id);
+  if (i == m_recordings.end ())
+    return PVR_ERROR_SERVER_ERROR;
+
+  *size = i->second.byte_size;
   return PVR_ERROR_NO_ERROR;
 }
 
