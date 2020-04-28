@@ -36,13 +36,20 @@ using namespace ADDON;
 #endif
 #endif
 
+#define PVR_FREEBOX_DEFAULT_SERVER   "mafreebox.freebox.fr"
+#define PVR_FREEBOX_DEFAULT_DELAY    10
+#define PVR_FREEBOX_DEFAULT_SOURCE   1
+#define PVR_FREEBOX_DEFAULT_QUALITY  1
+#define PVR_FREEBOX_DEFAULT_EXTENDED false
+#define PVR_FREEBOX_DEFAULT_COLORS   false
+
 std::string  path;
-std::string  server   = "mafreebox.freebox.fr";
-int          delay    = 0;
-int          source   = 1;
-int          quality  = 1;
-bool         extended = false;
-bool         colors   = false;
+std::string  server   = PVR_FREEBOX_DEFAULT_SERVER;
+int          delay    = PVR_FREEBOX_DEFAULT_DELAY;
+int          source   = PVR_FREEBOX_DEFAULT_SOURCE;
+int          quality  = PVR_FREEBOX_DEFAULT_QUALITY;
+bool         extended = PVR_FREEBOX_DEFAULT_EXTENDED;
+bool         colors   = PVR_FREEBOX_DEFAULT_COLORS;
 bool         init     = false;
 ADDON_STATUS status   = ADDON_STATUS_UNKNOWN;
 Freebox    * data     = nullptr;
@@ -55,12 +62,14 @@ extern "C" {
 
 void ADDON_ReadSettings ()
 {
-  if (! XBMC->GetSetting ("server",   &server))   server   = "mafreebox.freebox.fr";
-  if (! XBMC->GetSetting ("delay",    &delay))    delay    = 0;
-  if (! XBMC->GetSetting ("source",   &source))   source   = 1;
-  if (! XBMC->GetSetting ("quality",  &quality))  quality  = 1;
-  if (! XBMC->GetSetting ("extended", &extended)) extended = false;
-  if (! XBMC->GetSetting ("colors",   &colors))   colors   = false;
+  char buffer [256];
+  server = XBMC->GetSetting ("server", buffer) ? buffer : PVR_FREEBOX_DEFAULT_SERVER;
+
+  if (! XBMC->GetSetting ("delay",    &delay))    delay    = PVR_FREEBOX_DEFAULT_DELAY;
+  if (! XBMC->GetSetting ("source",   &source))   source   = PVR_FREEBOX_DEFAULT_SOURCE;
+  if (! XBMC->GetSetting ("quality",  &quality))  quality  = PVR_FREEBOX_DEFAULT_QUALITY;
+  if (! XBMC->GetSetting ("extended", &extended)) extended = PVR_FREEBOX_DEFAULT_EXTENDED;
+  if (! XBMC->GetSetting ("colors",   &colors))   colors   = PVR_FREEBOX_DEFAULT_COLORS;
 }
 
 ADDON_STATUS ADDON_Create (void * callbacks, void * properties)
