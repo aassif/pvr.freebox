@@ -355,7 +355,7 @@ PVR_ERROR DeleteTimer (const PVR_TIMER & timer, bool force)
 }
 
 PVR_ERROR GetDriveSpace (long long *, long long *) {return PVR_ERROR_NOT_IMPLEMENTED;}
-PVR_ERROR SignalStatus (PVR_SIGNAL_STATUS &) {return PVR_ERROR_NOT_IMPLEMENTED;}
+PVR_ERROR GetSignalStatus (int, PVR_SIGNAL_STATUS *) {return PVR_ERROR_NOT_IMPLEMENTED;}
 
 PVR_ERROR CallMenuHook (const PVR_MENUHOOK & hook, const PVR_MENUHOOK_DATA & d)
 {
@@ -396,7 +396,7 @@ bool SeekTime (double, bool, double *) {return false;}
 void SetSpeed (int) {};
 PVR_ERROR UndeleteRecording (const PVR_RECORDING &) {return PVR_ERROR_NOT_IMPLEMENTED;}
 PVR_ERROR DeleteAllRecordingsFromTrash () {return PVR_ERROR_NOT_IMPLEMENTED;}
-PVR_ERROR GetDescrambleInfo (PVR_DESCRAMBLE_INFO *) {return PVR_ERROR_NOT_IMPLEMENTED;}
+PVR_ERROR GetDescrambleInfo (int, PVR_DESCRAMBLE_INFO *) {return PVR_ERROR_NOT_IMPLEMENTED;}
 PVR_ERROR SetRecordingLifetime (const PVR_RECORDING *) {return PVR_ERROR_NOT_IMPLEMENTED;}
 PVR_ERROR GetStreamTimes (PVR_STREAM_TIMES *) {return PVR_ERROR_NOT_IMPLEMENTED;}
 PVR_ERROR GetStreamProperties (PVR_STREAM_PROPERTIES *) {return PVR_ERROR_NOT_IMPLEMENTED;}
