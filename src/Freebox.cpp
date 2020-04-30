@@ -138,6 +138,14 @@ enum Freebox::Quality Freebox::ParseQuality (const string & q)
 }
 
 /* static */
+enum Freebox::Protocol Freebox::ParseProtocol (const string & p)
+{
+  if (p == "rtsp") return Protocol::RTSP;
+  if (p == "hls")  return Protocol::HLS;
+  return Protocol::DEFAULT;
+}
+
+/* static */
 string Freebox::StrSource (enum Source s)
 {
   switch (s)
@@ -160,6 +168,17 @@ string Freebox::StrQuality (enum Quality q)
     case Quality::LD     : return "ld";
     case Quality::STEREO : return "3d";
     default              : return "";
+  }
+}
+
+/* static */
+string Freebox::StrProtocol (enum Protocol p)
+{
+  switch (p)
+  {
+    case Protocol::RTSP : return "rtsp";
+    case Protocol::HLS  : return "hls";
+    default             : return "";
   }
 }
 
@@ -823,6 +842,8 @@ bool Freebox::ProcessChannels ()
     const Conflicts & q = it.second;
 #endif
 
+    string protocol = StrProtocol (m_tv_protocol);
+
     if (! q.empty ())
     {
       const Conflict & ch = q.front ();
@@ -841,8 +862,8 @@ bool Freebox::ProcessChannels ()
           const Value  & s = streams [i];
           const string & t = s["type"].GetString ();
           const string & q = s["quality"].GetString ();
-          const string & r = s["rtsp"].GetString ();
-          data.emplace_back (ParseSource (t), ParseQuality (q), freebox_replace_server (r, m_server));
+          const string & u = s[protocol].GetString ();
+          data.emplace_back (ParseSource (t), ParseQuality (q), freebox_replace_server (u, m_server));
         }
       }
       m_tv_channels.emplace (ChannelId (ch.uuid), Channel (ch.uuid, name, logo, ch.major, ch.minor, data));
@@ -876,6 +897,7 @@ Freebox::Freebox (const string & path,
                   const string & server,
                   int source,
                   int quality,
+                  int protocol,
                   int days,
                   bool extended,
                   bool colors,
@@ -891,6 +913,7 @@ Freebox::Freebox (const string & path,
   m_tv_quality (Quality (quality)),
   m_tv_prefs_source (),
   m_tv_prefs_quality (),
+  m_tv_protocol (Protocol (protocol)),
   m_epg_queries (),
   m_epg_cache (),
   m_epg_days (0),
@@ -942,6 +965,12 @@ void Freebox::SetQuality (int q)
 {
   P8PLATFORM::CLockObject lock (m_mutex);
   m_tv_quality = Quality (q);
+}
+
+void Freebox::SetProtocol (int p)
+{
+  P8PLATFORM::CLockObject lock (m_mutex);
+  m_tv_protocol = Protocol (p);
 }
 
 void Freebox::SetDays (int d)

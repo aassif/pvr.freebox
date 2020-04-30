@@ -104,6 +104,9 @@ class Freebox :
     // Channel quality.
     enum class Quality {DEFAULT = -1, AUTO = 0, HD = 1, SD = 2, LD = 3, STEREO = 4};
 
+    // Streaming protocol.
+    enum class Protocol {DEFAULT = -1, RTSP = 1, HLS = 2};
+
     class Stream
     {
       public:
@@ -314,7 +317,7 @@ class Freebox :
     };
 
   public:
-    Freebox (const std::string & path, const std::string & server, int source, int quality, int days, bool extended, bool colors, int delay);
+    Freebox (const std::string & path, const std::string & server, int source, int quality, int protocol, int days, bool extended, bool colors, int delay);
     virtual ~Freebox ();
 
     // Freebox Server.
@@ -325,6 +328,8 @@ class Freebox :
     void SetSource (int);
     // Quality setting.
     void SetQuality (int);
+    // Streaming protocol.
+    void SetProtocol (int);
     // MaxDays setting.
     void SetDays (int);
     // Extended EPG.
@@ -404,11 +409,13 @@ class Freebox :
     void SetChannelQuality (unsigned int id, enum Quality);
 
   protected:
-    static enum Source  ParseSource  (const std::string &);
-    static enum Quality ParseQuality (const std::string &);
+    static enum Source   ParseSource   (const std::string &);
+    static enum Quality  ParseQuality  (const std::string &);
+    static enum Protocol ParseProtocol (const std::string &);
 
-    static std::string StrSource  (enum Source);
-    static std::string StrQuality (enum Quality);
+    static std::string StrSource   (enum Source);
+    static std::string StrQuality  (enum Quality);
+    static std::string StrProtocol (enum Protocol);
 
     static enum Source  DialogSource  (enum Source  selected =  Source::DEFAULT);
     static enum Quality DialogQuality (enum Quality selected = Quality::DEFAULT);
@@ -439,8 +446,9 @@ class Freebox :
     std::string m_session_token;
     // TV //////////////////////////////////////////////////////////////////////
     std::map<unsigned int, Channel> m_tv_channels;
-    enum Source  m_tv_source;
-    enum Quality m_tv_quality;
+    enum Source   m_tv_source;
+    enum Quality  m_tv_quality;
+    enum Protocol m_tv_protocol;
     std::map<unsigned int, enum Source>  m_tv_prefs_source;
     std::map<unsigned int, enum Quality> m_tv_prefs_quality;
     // EPG /////////////////////////////////////////////////////////////////////

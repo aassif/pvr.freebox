@@ -40,6 +40,7 @@ using namespace ADDON;
 #define PVR_FREEBOX_DEFAULT_DELAY    10
 #define PVR_FREEBOX_DEFAULT_SOURCE   1
 #define PVR_FREEBOX_DEFAULT_QUALITY  1
+#define PVR_FREEBOX_DEFAULT_PROTOCOL 1
 #define PVR_FREEBOX_DEFAULT_EXTENDED false
 #define PVR_FREEBOX_DEFAULT_COLORS   false
 
@@ -48,6 +49,7 @@ std::string  server   = PVR_FREEBOX_DEFAULT_SERVER;
 int          delay    = PVR_FREEBOX_DEFAULT_DELAY;
 int          source   = PVR_FREEBOX_DEFAULT_SOURCE;
 int          quality  = PVR_FREEBOX_DEFAULT_QUALITY;
+int          protocol = PVR_FREEBOX_DEFAULT_PROTOCOL;
 bool         extended = PVR_FREEBOX_DEFAULT_EXTENDED;
 bool         colors   = PVR_FREEBOX_DEFAULT_COLORS;
 bool         init     = false;
@@ -68,6 +70,7 @@ void ADDON_ReadSettings ()
   if (! XBMC->GetSetting ("delay",    &delay))    delay    = PVR_FREEBOX_DEFAULT_DELAY;
   if (! XBMC->GetSetting ("source",   &source))   source   = PVR_FREEBOX_DEFAULT_SOURCE;
   if (! XBMC->GetSetting ("quality",  &quality))  quality  = PVR_FREEBOX_DEFAULT_QUALITY;
+  if (! XBMC->GetSetting ("protocol", &protocol)) protocol = PVR_FREEBOX_DEFAULT_PROTOCOL;
   if (! XBMC->GetSetting ("extended", &extended)) extended = PVR_FREEBOX_DEFAULT_EXTENDED;
   if (! XBMC->GetSetting ("colors",   &colors))   colors   = PVR_FREEBOX_DEFAULT_COLORS;
 }
@@ -123,7 +126,7 @@ ADDON_STATUS ADDON_Create (void * callbacks, void * properties)
   for (PVR_MENUHOOK & h : HOOKS)
     PVR->AddMenuHook (&h);
 
-  data   = new Freebox (p->strUserPath, server, source, quality, p->iEpgMaxDays, extended, colors, delay);
+  data   = new Freebox (p->strUserPath, server, source, quality, protocol, p->iEpgMaxDays, extended, colors, delay);
   status = ADDON_STATUS_OK;
   init   = true;
 
@@ -166,6 +169,9 @@ ADDON_STATUS ADDON_SetSetting (const char * name, const void * value)
 
     if (! strcmp (name, "quality"))
       data->SetQuality (*((int *) value));
+
+    if (! strcmp (name, "protocol"))
+      data->SetProtocol (*((int *) value));
 
     if (! strcmp (name, "extended"))
       data->SetExtended (*((bool *) value));

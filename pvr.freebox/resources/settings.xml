@@ -51,6 +51,17 @@
           </constraints>
           <control type="list" format="string" />
         </setting>
+        <setting id="protocol" type="integer" label="30027" help="30028">
+          <level>3</level>
+          <default>1</default> <!-- RTSP -->
+          <constraints>
+            <options>
+              <option label="30029">1</option> <!-- RTSP -->
+              <option label="30030">2</option> <!-- HLS -->
+            </options>
+          </constraints>
+          <control type="list" format="string" />
+        </setting>
       </group> <!-- pvr.freebox.television -->
       <group id="pvr.freebox.epg" label="30020">
         <setting id="extended" type="boolean" label="30021" help="30022">

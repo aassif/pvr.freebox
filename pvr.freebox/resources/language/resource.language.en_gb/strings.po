@@ -124,3 +124,19 @@ msgctxt "#30026"
 msgid "Server name or IP address."
 msgstr ""
 
+msgctxt "#30027"
+msgid "Protocol"
+msgstr ""
+
+msgctxt "#30028"
+msgid "Streaming protocol: RTSP or HLS."
+msgstr ""
+
+msgctxt "#30029"
+msgid "RTSP"
+msgstr ""
+
+msgctxt "#30030"
+msgid "HLS"
+msgstr ""
+
