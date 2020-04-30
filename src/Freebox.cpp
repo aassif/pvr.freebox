@@ -717,6 +717,13 @@ string Freebox::Event::GetCastActors () const
   return accumulate (cast.begin (), cast.end (), string (), CONCAT);
 }
 
+inline string freebox_replace_server (string url, const string & server)
+{
+  static const string SERVER = "mafreebox.freebox.fr";
+  size_t k = url.find (SERVER);
+  return k != string::npos ? url.replace (k, SERVER.length (), server) : url;
+}
+
 bool Freebox::ProcessChannels ()
 {
   m_tv_channels.clear ();
@@ -845,7 +852,7 @@ bool Freebox::ProcessChannels ()
           const string & t = s["type"].GetString ();
           const string & q = s["quality"].GetString ();
           const string & r = s["rtsp"].GetString ();
-          data.emplace_back (ParseSource (t), ParseQuality (q), r);
+          data.emplace_back (ParseSource (t), ParseQuality (q), freebox_replace_server (r, m_server));
         }
       }
       m_tv_channels.emplace (ChannelId (ch.uuid), Channel (ch.uuid, name, logo, ch.major, ch.minor, data));
