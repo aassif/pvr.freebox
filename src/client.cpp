@@ -55,6 +55,7 @@ bool         colors   = PVR_FREEBOX_DEFAULT_COLORS;
 bool         init     = false;
 ADDON_STATUS status   = ADDON_STATUS_UNKNOWN;
 Freebox    * data     = nullptr;
+bool         isRecordingPlayback = false;
 
 CHelper_libXBMC_addon  * XBMC = nullptr;
 CHelper_libXBMC_pvr    * PVR  = nullptr;
@@ -276,6 +277,8 @@ PVR_ERROR GetChannels (ADDON_HANDLE handle, bool radio)
 
 PVR_ERROR GetChannelStreamProperties (const PVR_CHANNEL * channel, PVR_NAMED_VALUE * properties, unsigned int * count)
 {
+  isRecordingPlayback = false;
+
   return data ? data->GetChannelStreamProperties (channel, properties, count) : PVR_ERROR_SERVER_ERROR;
 }
 
@@ -311,6 +314,8 @@ PVR_ERROR GetRecordingSize (const PVR_RECORDING * recording, int64_t * size)
 
 PVR_ERROR GetRecordingStreamProperties (const PVR_RECORDING * recording, PVR_NAMED_VALUE * properties, unsigned int * count)
 {
+  isRecordingPlayback = true;
+
   return data ? data->GetRecordingStreamProperties (recording, properties, count) : PVR_ERROR_SERVER_ERROR;
 }
 
@@ -362,6 +367,11 @@ PVR_ERROR CallMenuHook (const PVR_MENUHOOK & hook, const PVR_MENUHOOK_DATA & d)
   return data ? data->MenuHook (hook, d) : PVR_ERROR_SERVER_ERROR;
 }
 
+bool IsRealTimeStream()
+{ 
+  return !isRecordingPlayback; 
+}
+
 /** UNUSED API FUNCTIONS */
 bool CanPauseStream () {return false;}
 PVR_ERROR OpenDialogChannelScan () {return PVR_ERROR_NOT_IMPLEMENTED;}
@@ -389,7 +399,6 @@ PVR_ERROR GetRecordingEdl (const PVR_RECORDING &, PVR_EDL_ENTRY [], int *) {retu
 void DemuxAbort () {}
 bool IsTimeshifting () {return false;}
 DemuxPacket * DemuxRead () {return NULL;}
-bool IsRealTimeStream () {return true;}
 void PauseStream (bool) {}
 bool CanSeekStream () {return false;}
 bool SeekTime (double, bool, double *) {return false;}
