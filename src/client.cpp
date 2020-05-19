@@ -76,7 +76,7 @@ void ADDON_ReadSettings ()
   if (! XBMC->GetSetting ("colors",   &colors))   colors   = PVR_FREEBOX_DEFAULT_COLORS;
 }
 
-ADDON_STATUS ADDON_Create (void * callbacks, void * properties)
+ADDON_STATUS ADDON_Create (void * callbacks, const char * globalApiVersion, void * properties)
 {
   if (! callbacks || ! properties)
   {
