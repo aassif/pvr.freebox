@@ -6,7 +6,7 @@
   provider-name="aassif">
   <requires>@ADDON_DEPENDS@</requires>
   <extension
-    point="xbmc.pvrclient"
+    point="kodi.pvrclient"
     library_@PLATFORM@="@LIBRARY_FILENAME@"/>
   <extension point="xbmc.addon.metadata">
     <summary lang="fr_FR">Extension enregistreur vidéo (PVR) pour Freebox TV. https://github.com/aassif/pvr.freebox</summary>
