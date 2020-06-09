@@ -27,6 +27,9 @@ set(FREEBOX_SOURCES src/Freebox.cpp)
 
 set(FREEBOX_HEADERS src/Freebox.h)
 
+addon_version(pvr.freebox FREEBOX)
+add_definitions(-DFREEBOX_VERSION=${FREEBOX_VERSION})
+
 build_addon(pvr.freebox FREEBOX DEPLIBS)
 
 include(CPack)
