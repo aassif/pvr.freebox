@@ -24,8 +24,7 @@
 #include <map>
 #include <queue>
 #include <algorithm> // find_if
-#include "kodi/libXBMC_pvr.h"
-#include "kodi/libKODI_guilib.h"
+#include "kodi/addon-instance/PVR.h"
 #include "p8-platform/os.h"
 #include "p8-platform/threads/threads.h"
 #include "rapidjson/document.h"
@@ -55,6 +54,14 @@
 #define PVR_FREEBOX_STRING_CHANNEL_QUALITY_SD   30017
 #define PVR_FREEBOX_STRING_CHANNEL_QUALITY_LD   30018
 #define PVR_FREEBOX_STRING_CHANNEL_QUALITY_3D   30019
+
+#define PVR_FREEBOX_DEFAULT_SERVER   "mafreebox.freebox.fr"
+#define PVR_FREEBOX_DEFAULT_DELAY    10
+#define PVR_FREEBOX_DEFAULT_SOURCE   Source::IPTV
+#define PVR_FREEBOX_DEFAULT_QUALITY  Quality::HD
+#define PVR_FREEBOX_DEFAULT_PROTOCOL Protocol::RTSP
+#define PVR_FREEBOX_DEFAULT_EXTENDED false
+#define PVR_FREEBOX_DEFAULT_COLORS   false
 
 #undef DELETE
 
@@ -86,7 +93,9 @@ class Index
     }
 };
 
-class Freebox :
+class ATTRIBUTE_HIDDEN Freebox :
+  public kodi::addon::CAddonBase,
+  public kodi::addon::CInstancePVRClient,
   public P8PLATFORM::CThread
 {
   protected:
@@ -147,9 +156,9 @@ class Freebox :
                  const std::vector<Stream> &);
 
         bool IsHidden () const;
-        void GetChannel (ADDON_HANDLE, bool radio) const;
+        void GetChannel (kodi::addon::PVRChannelsResultSet & results, bool radio) const;
         PVR_ERROR GetStreamProperties (enum Source, enum Quality,
-                                       PVR_NAMED_VALUE *, unsigned int * count) const;
+                                       std::vector<kodi::addon::PVRStreamProperty> & properties) const;
     };
 
     // Query types.
@@ -320,19 +329,66 @@ class Freebox :
     };
 
   public:
-    Freebox (const std::string & path, const std::string & server, int source, int quality, int protocol, int days, bool extended, bool colors, int delay);
+    Freebox ();
     virtual ~Freebox ();
+
+    // A D D O N  - B A S I C S ////////////////////////////////////////////////
+    ADDON_STATUS Create () override;
+    ADDON_STATUS SetSetting (const std::string &, const kodi::CSettingValue &) override;
+
+    // P V R  - B A S I C S ////////////////////////////////////////////////////
+    PVR_ERROR GetCapabilities (kodi::addon::PVRCapabilities &) override;
+    PVR_ERROR GetBackendName (std::string &) override;
+    PVR_ERROR GetBackendVersion (std::string &) override;
+    PVR_ERROR GetBackendHostname (std::string &) override;
+    PVR_ERROR GetConnectionString (std::string &) override;
+
+    // E P G ///////////////////////////////////////////////////////////////////
+    PVR_ERROR SetEPGTimeFrame(int) override;
+    PVR_ERROR GetEPGForChannel(int, time_t, time_t, kodi::addon::PVREPGTagsResultSet &) override;
+
+    // C H A N N E L S /////////////////////////////////////////////////////////
+    PVR_ERROR GetChannelsAmount(int &) override;
+    PVR_ERROR GetChannels(bool radio, kodi::addon::PVRChannelsResultSet &) override;
+    PVR_ERROR GetChannelGroupsAmount(int &) override;
+    PVR_ERROR GetChannelGroups(bool, kodi::addon::PVRChannelGroupsResultSet &) override;
+    PVR_ERROR GetChannelGroupMembers(const kodi::addon::PVRChannelGroup &, kodi::addon::PVRChannelGroupMembersResultSet &) override;
+    PVR_ERROR GetChannelStreamProperties(const kodi::addon::PVRChannel &, std::vector<kodi::addon::PVRStreamProperty> &) override;
+
+    // R E C O R D I N G S /////////////////////////////////////////////////////
+    PVR_ERROR GetRecordingsAmount(bool, int &) override;
+    PVR_ERROR GetRecordings(bool, kodi::addon::PVRRecordingsResultSet &) override;
+    PVR_ERROR GetRecordingSize (const kodi::addon::PVRRecording &, int64_t &) override;
+    PVR_ERROR GetRecordingStreamProperties(const kodi::addon::PVRRecording &, std::vector<kodi::addon::PVRStreamProperty> &) override;
+    PVR_ERROR RenameRecording (const kodi::addon::PVRRecording &) override;
+    PVR_ERROR DeleteRecording (const kodi::addon::PVRRecording &) override;
+
+    // T I M E R S /////////////////////////////////////////////////////////////
+    PVR_ERROR GetTimerTypes( std::vector<kodi::addon::PVRTimerType> &) override;
+    PVR_ERROR GetTimersAmount (int &) override;
+    PVR_ERROR GetTimers   (kodi::addon::PVRTimersResultSet &) override;
+    PVR_ERROR AddTimer    (const kodi::addon::PVRTimer &) override;
+    PVR_ERROR UpdateTimer (const kodi::addon::PVRTimer &) override;
+    PVR_ERROR DeleteTimer (const kodi::addon::PVRTimer &, bool) override;
+
+    // M E N U / H O O K S /////////////////////////////////////////////////////
+    PVR_ERROR CallChannelMenuHook (const kodi::addon::PVRMenuhook &, const kodi::addon::PVRChannel &) override;
+
+  protected:
+    virtual void * Process ();
+
+    void ReadSettings ();
 
     // Freebox Server.
     void SetServer (const std::string &);
     std::string GetServer () const;
 
     // Source setting.
-    void SetSource (int);
+    void SetSource (Source);
     // Quality setting.
-    void SetQuality (int);
+    void SetQuality (Quality);
     // Streaming protocol.
-    void SetProtocol (int);
+    void SetProtocol (Protocol);
     // MaxDays setting.
     void SetDays (int);
     // Extended EPG.
@@ -341,36 +397,6 @@ class Freebox :
     void SetColors (bool);
     // Delay setting.
     void SetDelay (int);
-
-    // C H A N N E L S /////////////////////////////////////////////////////////
-    int       GetChannelsAmount ();
-    PVR_ERROR GetChannels (ADDON_HANDLE, bool radio);
-    int       GetChannelGroupsAmount ();
-    PVR_ERROR GetChannelGroups (ADDON_HANDLE, bool radio);
-    PVR_ERROR GetChannelGroupMembers (ADDON_HANDLE, const PVR_CHANNEL_GROUP &);
-    PVR_ERROR GetChannelStreamProperties (const PVR_CHANNEL *, PVR_NAMED_VALUE *, unsigned int * count);
-
-    // R E C O R D I N G S /////////////////////////////////////////////////////
-    int       GetRecordingsAmount (bool deleted) const;
-    PVR_ERROR GetRecordings (ADDON_HANDLE, bool deleted) const;
-    PVR_ERROR GetRecordingSize (const PVR_RECORDING *, int64_t * size) const;
-    PVR_ERROR GetRecordingStreamProperties (const PVR_RECORDING *, PVR_NAMED_VALUE *, unsigned int * count) const;
-    PVR_ERROR RenameRecording (const PVR_RECORDING &);
-    PVR_ERROR DeleteRecording (const PVR_RECORDING &);
-
-    // T I M E R S /////////////////////////////////////////////////////////////
-    PVR_ERROR GetTimerTypes (PVR_TIMER_TYPE [], int * size) const;
-    int       GetTimersAmount () const;
-    PVR_ERROR GetTimers (ADDON_HANDLE) const;
-    PVR_ERROR AddTimer    (const PVR_TIMER &);
-    PVR_ERROR UpdateTimer (const PVR_TIMER &);
-    PVR_ERROR DeleteTimer (const PVR_TIMER &, bool force);
-
-    // M E N U / H O O K S /////////////////////////////////////////////////////
-    PVR_ERROR MenuHook (const PVR_MENUHOOK &, const PVR_MENUHOOK_DATA &);
-
-  protected:
-    virtual void * Process ();
 
     // H T T P /////////////////////////////////////////////////////////////////
     bool Http       (const std::string & custom,
@@ -441,9 +467,9 @@ class Freebox :
     // Add-on path.
     std::string m_path;
     // Freebox Server.
-    std::string m_server;
+    std::string m_server = PVR_FREEBOX_DEFAULT_SERVER;
     // Delay between queries.
-    int m_delay;
+    int m_delay = PVR_FREEBOX_DEFAULT_DELAY;
     // Freebox OS //////////////////////////////////////////////////////////////
     std::string m_app_token;
     int m_track_id;
@@ -460,8 +486,8 @@ class Freebox :
     std::set<std::string> m_epg_cache;
     int m_epg_days;
     time_t m_epg_last;
-    bool m_epg_extended;
-    bool m_epg_colors;
+    bool m_epg_extended = PVR_FREEBOX_DEFAULT_EXTENDED;
+    bool m_epg_colors   = PVR_FREEBOX_DEFAULT_COLORS;
     // Recordings //////////////////////////////////////////////////////////////
     std::map<int, Recording> m_recordings;
     // Timers //////////////////////////////////////////////////////////////////

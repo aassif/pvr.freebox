@@ -32,9 +32,11 @@
 #undef major
 #undef minor
 
+#include "kodi/Filesystem.h"
+#include "kodi/General.h"
+#include "kodi/gui/dialogs/Select.h"
 #include "p8-platform/util/StringUtils.h"
 
-#include "client.h"
 #include "Freebox.h"
 
 #include "openssl/sha.h"
@@ -48,9 +50,6 @@
 
 using namespace std;
 using namespace rapidjson;
-using namespace ADDON;
-
-#define PVR_FREEBOX_C_STR(s) s.empty () ? NULL : s.c_str ()
 
 #define PVR_FREEBOX_TIMER_MANUAL     1
 #define PVR_FREEBOX_TIMER_EPG        2
@@ -92,31 +91,31 @@ inline
 int freebox_http (const string & custom, const string & url, const string & request, string * response, const string & session)
 {
   // URL.
-  void * f = XBMC->CURLCreate (url.c_str ());
+  kodi::vfs::CFile f;
+  if (! f.CURLCreate (url))
+    return -1;
   // Custom request.
-  XBMC->CURLAddOption (f, XFILE::CURL_OPTION_PROTOCOL, "customrequest", custom.c_str ());
+  f.CURLAddOption (ADDON_CURL_OPTION_PROTOCOL, "customrequest", custom);
   // Header.
   if (! session.empty ())
-    XBMC->CURLAddOption (f, XFILE::CURL_OPTION_HEADER, "X-Fbx-App-Auth", session.c_str ());
+    f.CURLAddOption (ADDON_CURL_OPTION_HEADER, "X-Fbx-App-Auth", session);
   // POST?
   if (! request.empty ())
   {
     string base64 = freebox_base64 (request.c_str (), request.length ());
-    XBMC->CURLAddOption (f, XFILE::CURL_OPTION_PROTOCOL, "postdata", base64.c_str ());
+    f.CURLAddOption (ADDON_CURL_OPTION_PROTOCOL, "postdata", base64);
   }
   // Perform HTTP query.
-  if (! XBMC->CURLOpen (f, XFILE::READ_NO_CACHE))
+  if (! f.CURLOpen (ADDON_READ_NO_CACHE))
     return -1;
   // Read HTTP response.
   char buffer [1024];
-  while (int size = XBMC->ReadFile (f, buffer, 1024))
+  while (int size = f.Read (buffer, 1024))
     response->append (buffer, size);
   // HTTP status code.
-  string header = XBMC->GetFilePropertyValue (f, XFILE::FILE_PROPERTY_RESPONSE_PROTOCOL, "");
+  string header = f.GetPropertyValue (ADDON_FILE_PROPERTY_RESPONSE_PROTOCOL, "");
   istringstream iss (header); string protocol; int status;
   if (! (iss >> protocol >> status >> ws)) return -1;
-  // Cleanup.
-  XBMC->CloseFile (f);
   return status;
 }
 
@@ -205,7 +204,7 @@ bool Freebox::Http (const string & custom,
 
   string response;
   long http = freebox_http (custom, url, buffer.GetString (), &response, session);
-  XBMC->Log (LOG_DEBUG, "%s %s %s", custom.c_str (), url.c_str (), response.c_str ());
+  kodi::Log (ADDON_LOG_DEBUG, "%s %s %s", custom.c_str (), url.c_str (), response.c_str ());
 
   doc->Parse (response);
 
@@ -225,7 +224,7 @@ bool Freebox::Http (const string & custom,
 
   if (http != 200)
   {
-    XBMC->QueueNotification (QUEUE_INFO, "HTTP %d", http);
+    kodi::QueueFormattedNotification (QUEUE_INFO, "HTTP %d", http);
     cout << "HTTP " << http << " : " << response << endl;
     return false;
   }
@@ -289,7 +288,7 @@ bool Freebox::StartSession ()
   if (m_app_token.empty ())
   {
     string file = m_path + "app_token.txt";
-    if (! XBMC->FileExists (file.c_str (), false))
+    if (! kodi::vfs::FileExists (file, false))
     {
 #ifndef HOST_NAME_MAX
   #ifdef _POSIX_HOST_NAME_MAX
@@ -359,9 +358,8 @@ bool Freebox::StartSession ()
     }
     else
     {
-      char * notification = XBMC->GetLocalizedString (PVR_FREEBOX_STRING_AUTH_REQUIRED);
-      XBMC->QueueNotification (QUEUE_WARNING, notification);
-      XBMC->FreeString (notification);
+      string notification = kodi::GetLocalizedString (PVR_FREEBOX_STRING_AUTH_REQUIRED);
+      kodi::QueueNotification (QUEUE_WARNING, "", notification);
       return false;
     }
   }
@@ -566,29 +564,28 @@ bool Freebox::Channel::IsHidden () const
   return streams.empty ();
 }
 
-void Freebox::Channel::GetChannel (ADDON_HANDLE handle, bool radio) const
+void Freebox::Channel::GetChannel (kodi::addon::PVRChannelsResultSet & results, bool radio) const
 {
-  PVR_CHANNEL channel;
-  memset (&channel, 0, sizeof (PVR_CHANNEL));
+  kodi::addon::PVRChannel channel;
 
-  channel.iUniqueId         = ChannelId (uuid);
-  channel.bIsRadio          = radio;
-  channel.iChannelNumber    = major;
-  channel.iSubChannelNumber = minor;
-  strncpy (channel.strChannelName, name.c_str (), PVR_ADDON_NAME_STRING_LENGTH - 1);
-  strncpy (channel.strIconPath,    logo.c_str (), PVR_ADDON_URL_STRING_LENGTH  - 1);
-  channel.bIsHidden         = IsHidden ();
+  channel.SetUniqueId         (ChannelId (uuid));
+  channel.SetIsRadio          (radio);
+  channel.SetChannelNumber    (major);
+  channel.SetSubChannelNumber (minor);
+  channel.SetChannelName      (name);
+  channel.SetIconPath         (logo);
+  channel.SetIsHidden         (IsHidden ());
 
-  PVR->TransferChannelEntry (handle, &channel);
+  results.Add (channel);
 }
 
 void freebox_debug_stream_properties (const string & url, int index, int score)
 {
-  XBMC->Log (LOG_DEBUG, "GetStreamProperties: '%s' (index = %d, score = %d)", url.c_str (), index, score);
+  kodi::Log (ADDON_LOG_DEBUG, "GetStreamProperties: '%s' (index = %d, score = %d)", url.c_str (), index, score);
 }
 
 PVR_ERROR Freebox::Channel::GetStreamProperties (enum Source source, enum Quality quality,
-                                                 PVR_NAMED_VALUE * properties, unsigned int * count) const
+                                                 std::vector<kodi::addon::PVRStreamProperty> & properties) const
 {
   if (! streams.empty ())
   {
@@ -607,11 +604,8 @@ PVR_ERROR Freebox::Channel::GetStreamProperties (enum Source source, enum Qualit
       }
     }
 
-    strncpy (properties[0].strName,  PVR_STREAM_PROPERTY_STREAMURL,         PVR_ADDON_NAME_STRING_LENGTH - 1);
-    strncpy (properties[0].strValue, streams[index].url.c_str (),           PVR_ADDON_NAME_STRING_LENGTH - 1);
-    strncpy (properties[1].strName,  PVR_STREAM_PROPERTY_ISREALTIMESTREAM,  PVR_ADDON_NAME_STRING_LENGTH - 1);
-    strncpy (properties[1].strValue, "true",                                PVR_ADDON_NAME_STRING_LENGTH - 1);
-    *count = 2;
+    properties.emplace_back (PVR_STREAM_PROPERTY_STREAMURL, streams[index].url);
+    properties.emplace_back (PVR_STREAM_PROPERTY_ISREALTIMESTREAM, "true");
   }
 
   return PVR_ERROR_NO_ERROR;
@@ -750,9 +744,8 @@ bool Freebox::ProcessChannels ()
   Document channels;
   if (! HttpGet ("/api/v6/tv/channels", &channels)) return false;
 
-  char * notification = XBMC->GetLocalizedString (PVR_FREEBOX_STRING_CHANNELS_LOADED);
-  XBMC->QueueNotification (QUEUE_INFO, notification, channels["result"].MemberCount ());
-  XBMC->FreeString (notification);
+  string notification = kodi::GetLocalizedString (PVR_FREEBOX_STRING_CHANNELS_LOADED);
+  kodi::QueueFormattedNotification (QUEUE_INFO, notification.c_str (), channels["result"].MemberCount ());
 
   //Document bouquets;
   //HttpGet ("/api/v6/tv/bouquets", &m_tv_bouquets);
@@ -903,42 +896,22 @@ bool Freebox::ProcessChannels ()
   return true;
 }
 
-Freebox::Freebox (const string & path,
-                  const string & server,
-                  int source,
-                  int quality,
-                  int protocol,
-                  int days,
-                  bool extended,
-                  bool colors,
-                  int delay) :
-  m_path (path),
-  m_server (server),
-  m_delay (delay),
+Freebox::Freebox () :
   m_app_token (),
   m_track_id (),
   m_session_token (),
   m_tv_channels (),
-  m_tv_source (Source (source)),
-  m_tv_quality (Quality (quality)),
   m_tv_prefs_source (),
   m_tv_prefs_quality (),
-  m_tv_protocol (Protocol (protocol)),
   m_epg_queries (),
   m_epg_cache (),
   m_epg_days (0),
   m_epg_last (0),
-  m_epg_extended (extended),
-  m_epg_colors (colors),
   m_recordings (),
   m_unique_id (1),
   m_generators (),
   m_timers ()
 {
-  XBMC->QueueNotification (QUEUE_INFO, PVR_FREEBOX_VERSION);
-  SetDays (days);
-  ProcessChannels ();
-  CreateThread ();
 }
 
 Freebox::~Freebox ()
@@ -965,22 +938,22 @@ string Freebox::URL (const string & query) const
   return "http://" + m_server + query;
 }
 
-void Freebox::SetSource (int s)
+void Freebox::SetSource (Source s)
 {
   P8PLATFORM::CLockObject lock (m_mutex);
-  m_tv_source = Source (s);
+  m_tv_source = s;
 }
 
-void Freebox::SetQuality (int q)
+void Freebox::SetQuality (Quality q)
 {
   P8PLATFORM::CLockObject lock (m_mutex);
-  m_tv_quality = Quality (q);
+  m_tv_quality = q;
 }
 
-void Freebox::SetProtocol (int p)
+void Freebox::SetProtocol (Protocol p)
 {
   P8PLATFORM::CLockObject lock (m_mutex);
-  m_tv_protocol = Protocol (p);
+  m_tv_protocol = p;
 }
 
 void Freebox::SetDays (int d)
@@ -1019,7 +992,7 @@ void Freebox::ProcessEvent (const Event & e, EPG_EVENT_STATE state)
   cout << "  " << '"' << e.plot << '"' << endl;
 #endif
 
-    XBMC->Log (LOG_ERROR, "%s : \"%s\" %d+%d", e.uuid.c_str (), e.title.c_str (), e.date, e.duration);
+    kodi::Log (ADDON_LOG_ERROR, "%s : \"%s\" %d+%d", e.uuid.c_str (), e.title.c_str (), e.date, e.duration);
     return;
   }
 
@@ -1031,54 +1004,53 @@ void Freebox::ProcessEvent (const Event & e, EPG_EVENT_STATE state)
   string actors   = e.GetCastActors   ();
   string director = e.GetCastDirector ();
 
-  EPG_TAG tag;
-  memset (&tag, 0, sizeof (EPG_TAG));
+  kodi::addon::PVREPGTag tag;
 
-  tag.iUniqueBroadcastId  = BroadcastId (e.uuid);
-  tag.strTitle            = PVR_FREEBOX_C_STR (e.title);
-  tag.iUniqueChannelId    = e.channel;
-  tag.startTime           = e.date;
-  tag.endTime             = e.date + e.duration;
-  tag.strPlotOutline      = PVR_FREEBOX_C_STR (e.outline);
-  tag.strPlot             = PVR_FREEBOX_C_STR (e.plot);
-  tag.strOriginalTitle    = NULL;
-  tag.strCast             = PVR_FREEBOX_C_STR (actors);
-  tag.strDirector         = PVR_FREEBOX_C_STR (director);
-  tag.strWriter           = NULL;
-  tag.iYear               = e.year;
-  tag.strIMDBNumber       = NULL;
-  tag.strIconPath         = PVR_FREEBOX_C_STR (picture);
+  tag.SetUniqueBroadcastId (BroadcastId (e.uuid));
+  tag.SetTitle             (e.title);
+  tag.SetUniqueChannelId   (e.channel);
+  tag.SetStartTime         (e.date);
+  tag.SetEndTime           (e.date + e.duration);
+  tag.SetPlotOutline       (e.outline);
+  tag.SetPlot              (e.plot);
+  tag.SetOriginalTitle     ("");
+  tag.SetCast              (actors);
+  tag.SetDirector          (director);
+  tag.SetWriter            ("");
+  tag.SetYear              (e.year);
+  tag.SetIMDBNumber        ("");
+  tag.SetIconPath          (picture);
   if (colors)
   {
     int c = Event::Colors (e.category);
-    tag.iGenreType          = c & 0xF0;
-    tag.iGenreSubType       = c & 0x0F;
-    tag.strGenreDescription = NULL;
+    tag.SetGenreType         (c & 0xF0);
+    tag.SetGenreSubType      (c & 0x0F);
+    tag.SetGenreDescription  ("");
   }
   else
   {
     string c = Event::Native (e.category);
-    tag.iGenreType          = EPG_GENRE_USE_STRING;
-    tag.iGenreSubType       = 0;
-    tag.strGenreDescription = PVR_FREEBOX_C_STR (c);
+    tag.SetGenreType         (EPG_GENRE_USE_STRING);
+    tag.SetGenreSubType      (0);
+    tag.SetGenreDescription  (c);
   }
-  tag.iParentalRating     = 0;
-  tag.iStarRating         = 0;
+  tag.SetParentalRating    (0);
+  tag.SetStarRating        (0);
   if (e.season == 0 && e.episode == 0)
   {
-    tag.iSeriesNumber       = EPG_TAG_INVALID_SERIES_EPISODE;
-    tag.iEpisodeNumber      = EPG_TAG_INVALID_SERIES_EPISODE;
+    tag.SetSeriesNumber      (EPG_TAG_INVALID_SERIES_EPISODE);
+    tag.SetEpisodeNumber     (EPG_TAG_INVALID_SERIES_EPISODE);
   }
   else
   {
-    tag.iSeriesNumber       = e.season;
-    tag.iEpisodeNumber      = e.episode;
+    tag.SetSeriesNumber      (e.season);
+    tag.SetEpisodeNumber     (e.episode);
   }
-  tag.iEpisodePartNumber  = EPG_TAG_INVALID_SERIES_EPISODE;
-  tag.strEpisodeName      = PVR_FREEBOX_C_STR (e.subtitle);
-  tag.iFlags              = EPG_TAG_FLAG_UNDEFINED;
+  tag.SetEpisodePartNumber (EPG_TAG_INVALID_SERIES_EPISODE);
+  tag.SetEpisodeName       (e.subtitle);
+  tag.SetFlags             (EPG_TAG_FLAG_UNDEFINED);
 
-  PVR->EpgEventStateChange (&tag, state);
+  EpgEventStateChange (tag, state);
 }
 
 void Freebox::ProcessEvent (const Value & event, unsigned int channel, time_t date, EPG_EVENT_STATE state)
@@ -1168,7 +1140,7 @@ void * Freebox::Process ()
       {
         P8PLATFORM::CLockObject lock (m_mutex);
         m_epg_queries.emplace (FULL, query);
-        //XBMC->Log (LOG_INFO, "Queued: '%s' %d < %d", query.c_str (), t, end);
+        //kodi::Log (ADDON_LOG_INFO, "Queued: '%s' %d < %d", query.c_str (), t, end);
         m_epg_last = t + 3600;
       }
     }
@@ -1186,7 +1158,7 @@ void * Freebox::Process ()
     if (q.type != NONE)
     {
       //cout << q.query << " [" << delay << ']' << endl;
-      XBMC->Log (LOG_INFO, "Processing: '%s'", q.query.c_str ());
+      kodi::Log (ADDON_LOG_INFO, "Processing: '%s'", q.query.c_str ());
 
       Document json;
       if (HttpGet (q.query, &json))
@@ -1213,54 +1185,191 @@ void * Freebox::Process ()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// A D D O N  - B A S I C S ////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+
+ADDON_STATUS Freebox::Create ()
+{
+  kodi::Log (ADDON_LOG_DEBUG, "%s - Creating the Freebox TV add-on", __FUNCTION__);
+
+  m_path = UserPath ();
+  if (! kodi::vfs::DirectoryExists (m_path))
+    kodi::vfs::CreateDirectory (m_path);
+
+  ReadSettings ();
+
+  static std::vector<kodi::addon::PVRMenuhook> HOOKS =
+  {
+    {PVR_FREEBOX_MENUHOOK_CHANNEL_SOURCE,  PVR_FREEBOX_STRING_CHANNEL_SOURCE,  PVR_MENUHOOK_CHANNEL},
+    {PVR_FREEBOX_MENUHOOK_CHANNEL_QUALITY, PVR_FREEBOX_STRING_CHANNEL_QUALITY, PVR_MENUHOOK_CHANNEL}
+  };
+
+  for (auto & h : HOOKS)
+    AddMenuHook (h);
+
+  kodi::QueueNotification (QUEUE_INFO, "", PVR_FREEBOX_VERSION);
+  SetDays (EpgMaxDays ());
+  ProcessChannels ();
+  CreateThread ();
+
+  return ADDON_STATUS_OK;
+}
+
+ADDON_STATUS Freebox::SetSetting (const string & settingName, const kodi::CSettingValue & settingValue)
+{
+  /**/ if (settingName == "server")
+  {
+    SetServer (settingValue.GetString ());
+    return ADDON_STATUS_NEED_RESTART;
+  }
+
+  else if (settingName == "delay")
+    SetDelay (settingValue.GetInt ());
+
+  else if (settingName == "restart")
+    return settingValue.GetBoolean() ? ADDON_STATUS_NEED_RESTART : ADDON_STATUS_OK;
+
+  else if (settingName == "source")
+    SetSource (settingValue.GetEnum<Source> ());
+
+  else if (settingName == "quality")
+    SetQuality (settingValue.GetEnum<Quality> ());
+
+  else if (settingName == "protocol")
+    SetProtocol (settingValue.GetEnum<Protocol> ());
+
+  else if (settingName == "extended")
+    SetExtended (settingValue.GetBoolean ());
+
+  else if (settingName == "colors")
+  {
+    SetColors (settingValue.GetBoolean ());
+    return ADDON_STATUS_NEED_RESTART;
+  }
+
+  return ADDON_STATUS_OK;
+}
+
+void Freebox::ReadSettings ()
+{
+  m_server       = kodi::GetSettingString         ("server",   PVR_FREEBOX_DEFAULT_SERVER);
+  m_delay        = kodi::GetSettingInt            ("delay",    PVR_FREEBOX_DEFAULT_DELAY);
+  m_tv_source    = kodi::GetSettingEnum<Source>   ("source",   PVR_FREEBOX_DEFAULT_SOURCE);
+  m_tv_quality   = kodi::GetSettingEnum<Quality>  ("quality",  PVR_FREEBOX_DEFAULT_QUALITY);
+  m_tv_protocol  = kodi::GetSettingEnum<Protocol> ("protocol", PVR_FREEBOX_DEFAULT_PROTOCOL);
+  m_epg_extended = kodi::GetSettingBoolean        ("extended", PVR_FREEBOX_DEFAULT_EXTENDED);
+  m_epg_colors   = kodi::GetSettingBoolean        ("colors",   PVR_FREEBOX_DEFAULT_COLORS);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// P V R  - B A S I C S ////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+
+PVR_ERROR Freebox::GetCapabilities (kodi::addon::PVRCapabilities & caps)
+{
+  caps.SetSupportsEPG                      (true);
+  caps.SetSupportsTV                       (true);
+  caps.SetSupportsRadio                    (false);
+  caps.SetSupportsChannelGroups            (false);
+  caps.SetSupportsRecordings               (true);
+  caps.SetSupportsRecordingSize            (true);
+  caps.SetSupportsRecordingsRename         (true);
+  caps.SetSupportsRecordingsUndelete       (false);
+  caps.SetSupportsRecordingsLifetimeChange (false);
+  caps.SetSupportsTimers                   (true);
+  caps.SetSupportsDescrambleInfo           (false);
+  caps.SetSupportsAsyncEPGTransfer         (true);
+
+  return PVR_ERROR_NO_ERROR;
+}
+
+PVR_ERROR Freebox::GetBackendName (string & name)
+{
+  name = PVR_FREEBOX_BACKEND_NAME;
+  return PVR_ERROR_NO_ERROR;
+}
+
+PVR_ERROR Freebox::GetBackendVersion (string & version)
+{
+  version = PVR_FREEBOX_BACKEND_VERSION;
+  return PVR_ERROR_NO_ERROR;
+}
+
+PVR_ERROR Freebox::GetBackendHostname (string & hostname)
+{
+  hostname = GetServer ();
+  return PVR_ERROR_NO_ERROR;
+}
+
+PVR_ERROR Freebox::GetConnectionString (string & connection)
+{
+  connection = PVR_FREEBOX_CONNECTION_STRING;
+  return PVR_ERROR_NO_ERROR;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// E P G ///////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+
+PVR_ERROR Freebox::SetEPGTimeFrame (int days)
+{
+  SetDays (days);
+  return PVR_ERROR_NO_ERROR;
+}
+
+PVR_ERROR Freebox::GetEPGForChannel (int channelUid, time_t start, time_t end, kodi::addon::PVREPGTagsResultSet & results)
+{
+  return PVR_ERROR_NO_ERROR;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // C H A N N E L S /////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 
-int Freebox::GetChannelsAmount ()
+PVR_ERROR Freebox::GetChannelsAmount (int & amount)
 {
   P8PLATFORM::CLockObject lock (m_mutex);
-  return m_tv_channels.size ();
+  amount = m_tv_channels.size ();
+  return PVR_ERROR_NO_ERROR;
 }
 
-PVR_ERROR Freebox::GetChannels (ADDON_HANDLE handle, bool radio)
+PVR_ERROR Freebox::GetChannels (bool radio, kodi::addon::PVRChannelsResultSet & results)
 {
   P8PLATFORM::CLockObject lock (m_mutex);
 
   //for (auto i = m_tv_channels.begin (); i != m_tv_channels.end (); ++i)
   for (auto i : m_tv_channels)
-    i.second.GetChannel (handle, radio);
+    i.second.GetChannel (results, radio);
 
   return PVR_ERROR_NO_ERROR;
 }
 
-int Freebox::GetChannelGroupsAmount ()
+PVR_ERROR Freebox::GetChannelGroupsAmount (int & amount)
 {
   P8PLATFORM::CLockObject lock (m_mutex);
-  return 0;
+  amount = 0;
+  return PVR_ERROR_NO_ERROR;
 }
 
-PVR_ERROR Freebox::GetChannelGroups (ADDON_HANDLE handle, bool radio)
+PVR_ERROR Freebox::GetChannelGroups (bool radio, kodi::addon::PVRChannelGroupsResultSet & results)
 {
   return PVR_ERROR_NO_ERROR;
 }
 
-PVR_ERROR Freebox::GetChannelGroupMembers (ADDON_HANDLE handle, const PVR_CHANNEL_GROUP & group)
+PVR_ERROR Freebox::GetChannelGroupMembers (const kodi::addon::PVRChannelGroup & group, kodi::addon::PVRChannelGroupMembersResultSet & results)
 {
   return PVR_ERROR_NO_ERROR;
 }
 
-PVR_ERROR Freebox::GetChannelStreamProperties (const PVR_CHANNEL * channel, PVR_NAMED_VALUE * properties, unsigned int * count)
+PVR_ERROR Freebox::GetChannelStreamProperties (const kodi::addon::PVRChannel & channel, std::vector<kodi::addon::PVRStreamProperty> & properties)
 {
-  if (! channel || ! properties || ! count || *count < 2)
-    return PVR_ERROR_INVALID_PARAMETERS;
-
-  enum Source  source  = ChannelSource  (channel->iUniqueId, true);
-  enum Quality quality = ChannelQuality (channel->iUniqueId, true);
+  enum Source  source  = ChannelSource  (channel.GetUniqueId (), true);
+  enum Quality quality = ChannelQuality (channel.GetUniqueId (), true);
 
   P8PLATFORM::CLockObject lock (m_mutex);
-  auto f = m_tv_channels.find (channel->iUniqueId);
+  auto f = m_tv_channels.find (channel.GetUniqueId ());
   if (f != m_tv_channels.end ())
-    return f->second.GetStreamProperties (source, quality, properties, count);
+    return f->second.GetStreamProperties (source, quality, properties);
 
   return PVR_ERROR_NO_ERROR;
 }
@@ -1362,17 +1471,18 @@ void Freebox::ProcessRecordings ()
       m_recordings.emplace (id, Recording (result [i]));
     }
 
-    PVR->TriggerRecordingUpdate ();
+    TriggerRecordingUpdate ();
   }
 }
 
-int Freebox::GetRecordingsAmount (bool deleted) const
+PVR_ERROR Freebox::GetRecordingsAmount (bool deleted, int& amount)
 {
   P8PLATFORM::CLockObject lock (m_mutex);
-  return m_recordings.size ();
+  amount = m_recordings.size ();
+  return PVR_ERROR_NO_ERROR;
 }
 
-PVR_ERROR Freebox::GetRecordings (ADDON_HANDLE handle, bool deleted) const
+PVR_ERROR Freebox::GetRecordings (bool deleted, kodi::addon::PVRRecordingsResultSet & results)
 {
   P8PLATFORM::CLockObject lock (m_mutex);
 
@@ -1388,50 +1498,40 @@ PVR_ERROR Freebox::GetRecordings (ADDON_HANDLE handle, bool deleted) const
 
     if (! r.secure)
     {
-      PVR_RECORDING recording;
-      memset (&recording, 0, sizeof (PVR_RECORDING));
-      recording.iSeriesNumber = PVR_RECORDING_INVALID_SERIES_EPISODE;
-      recording.iEpisodeNumber = PVR_RECORDING_INVALID_SERIES_EPISODE;
+      kodi::addon::PVRRecording recording;
 
-      recording.recordingTime = r.start;
-      recording.iDuration     = r.end - r.start;
-      recording.iChannelUid   = ChannelId (r.channel_uuid);
-      recording.channelType   = PVR_RECORDING_CHANNEL_TYPE_TV; // r.broadcast_type == "tv"
+      recording.SetRecordingTime (r.start);
+      recording.SetDuration      (r.end - r.start);
+      recording.SetChannelUid    (ChannelId (r.channel_uuid));
+      recording.SetChannelType   (PVR_RECORDING_CHANNEL_TYPE_TV); // r.broadcast_type == "tv"
+      recording.SetRecordingId   (to_string (r.id));
+      recording.SetTitle         (r.name);
+      recording.SetEpisodeName   (r.subname);
+      recording.SetChannelName   (r.channel_name);
 
-      strncpy (recording.strRecordingId, to_string (r.id).c_str (), PVR_ADDON_NAME_STRING_LENGTH - 1);
-      strncpy (recording.strTitle,       r.name.c_str (),           PVR_ADDON_NAME_STRING_LENGTH - 1);
-      strncpy (recording.strEpisodeName, r.subname.c_str (),        PVR_ADDON_NAME_STRING_LENGTH - 1);
-      strncpy (recording.strChannelName, r.channel_name.c_str (),   PVR_ADDON_NAME_STRING_LENGTH - 1);
-
-      PVR->TransferRecordingEntry (handle, &recording);
+      results.Add (recording);
     }
   }
 
   return PVR_ERROR_NO_ERROR;
 }
 
-PVR_ERROR Freebox::GetRecordingSize (const PVR_RECORDING * recording, int64_t * size) const
+PVR_ERROR Freebox::GetRecordingSize (const kodi::addon::PVRRecording & recording, int64_t & size)
 {
-  if (! recording || ! size)
-    return PVR_ERROR_INVALID_PARAMETERS;
-
-  int id = stoi (recording->strRecordingId);
+  int id = stoi (recording.GetRecordingId ());
 
   P8PLATFORM::CLockObject lock (m_mutex);
   auto i = m_recordings.find (id);
   if (i == m_recordings.end ())
     return PVR_ERROR_SERVER_ERROR;
 
-  *size = i->second.byte_size;
+  size = i->second.byte_size;
   return PVR_ERROR_NO_ERROR;
 }
 
-PVR_ERROR Freebox::GetRecordingStreamProperties (const PVR_RECORDING * recording, PVR_NAMED_VALUE * properties, unsigned int * count) const
+PVR_ERROR Freebox::GetRecordingStreamProperties (const kodi::addon::PVRRecording & recording, std::vector<kodi::addon::PVRStreamProperty> & properties)
 {
-  if (! recording || ! properties || ! count || *count < 2)
-    return PVR_ERROR_INVALID_PARAMETERS;
-
-  int id = stoi (recording->strRecordingId);
+  int id = stoi (recording.GetRecordingId ());
 
   P8PLATFORM::CLockObject lock (m_mutex);
   auto i = m_recordings.find (id);
@@ -1440,22 +1540,19 @@ PVR_ERROR Freebox::GetRecordingStreamProperties (const PVR_RECORDING * recording
 
   const Recording & r = i->second;
   string stream = "smb://" + m_server + '/' + r.media + '/' + r.path + '/' + r.filename;
-  strncpy (properties[0].strName,  PVR_STREAM_PROPERTY_STREAMURL,        PVR_ADDON_NAME_STRING_LENGTH - 1);
-  strncpy (properties[0].strValue, stream.c_str (),                      PVR_ADDON_NAME_STRING_LENGTH - 1);
-  strncpy (properties[1].strName,  PVR_STREAM_PROPERTY_ISREALTIMESTREAM, PVR_ADDON_NAME_STRING_LENGTH - 1);
-  strncpy (properties[1].strValue, "false",                              PVR_ADDON_NAME_STRING_LENGTH - 1);
-  *count = 2;
+  properties.emplace_back (PVR_STREAM_PROPERTY_STREAMURL, stream);
+  properties.emplace_back (PVR_STREAM_PROPERTY_ISREALTIMESTREAM, "false");
 
   return PVR_ERROR_NO_ERROR;
 }
 
-PVR_ERROR Freebox::RenameRecording (const PVR_RECORDING & recording)
+PVR_ERROR Freebox::RenameRecording (const kodi::addon::PVRRecording & recording)
 {
   StartSession ();
 
-  int    id      = stoi (recording.strRecordingId);
-  string name    = recording.strTitle;
-  string subname = recording.strEpisodeName;
+  int    id      = stoi (recording.GetRecordingId ());
+  string name    = recording.GetTitle ();
+  string subname = recording.GetEpisodeName ();
 
   P8PLATFORM::CLockObject lock (m_mutex);
   auto i = m_recordings.find (id);
@@ -1474,16 +1571,16 @@ PVR_ERROR Freebox::RenameRecording (const PVR_RECORDING & recording)
 
   // Update recording (locally).
   i->second = Recording (response["result"]);
-  PVR->TriggerRecordingUpdate ();
+  TriggerRecordingUpdate ();
 
   return PVR_ERROR_NO_ERROR;
 }
 
-PVR_ERROR Freebox::DeleteRecording (const PVR_RECORDING & recording)
+PVR_ERROR Freebox::DeleteRecording (const kodi::addon::PVRRecording & recording)
 {
   StartSession ();
 
-  int id = stoi (recording.strRecordingId);
+  int id = stoi (recording.GetRecordingId ());
 
   P8PLATFORM::CLockObject lock (m_mutex);
   auto i = m_recordings.find (id);
@@ -1497,7 +1594,7 @@ PVR_ERROR Freebox::DeleteRecording (const PVR_RECORDING & recording)
 
   // Delete recording (locally).
   m_recordings.erase (i);
-  PVR->TriggerRecordingUpdate ();
+  TriggerRecordingUpdate ();
 
   return PVR_ERROR_NO_ERROR;
 }
@@ -1548,7 +1645,7 @@ void Freebox::ProcessGenerators ()
       m_generators.emplace (unique_id, Generator (result [i]));
     }
 
-    PVR->TriggerTimerUpdate ();
+    TriggerTimerUpdate ();
   }
 }
 
@@ -1593,15 +1690,12 @@ void Freebox::ProcessTimers ()
         m_timers.emplace (unique_id, Timer (result [i]));
     }
 
-    PVR->TriggerTimerUpdate ();
+    TriggerTimerUpdate ();
   }
 }
 
-PVR_ERROR Freebox::GetTimerTypes (PVR_TIMER_TYPE types [], int * size) const
+PVR_ERROR Freebox::GetTimerTypes (std::vector<kodi::addon::PVRTimerType> & types)
 {
-  if (! size || *size < 5)
-    return PVR_ERROR_INVALID_PARAMETERS;
-
   const unsigned int ATTRIBS =
     PVR_TIMER_TYPE_SUPPORTS_CHANNELS         |
     PVR_TIMER_TYPE_SUPPORTS_START_TIME       |
@@ -1609,77 +1703,72 @@ PVR_ERROR Freebox::GetTimerTypes (PVR_TIMER_TYPE types [], int * size) const
     PVR_TIMER_TYPE_SUPPORTS_START_END_MARGIN;
 
   // One-shot manual.
-  //strncpy (types[0].strDescription, "PVR_FREEBOX_TIMER_MANUAL", PVR_ADDON_TIMERTYPE_STRING_LENGTH - 1);
-  types[0].iId = PVR_FREEBOX_TIMER_MANUAL;
-  types[0].iAttributes = ATTRIBS |
-                         PVR_TIMER_TYPE_IS_MANUAL;
-  types[0].iPrioritiesSize = 0;
-  types[0].iLifetimesSize = 0;
-  types[0].iPreventDuplicateEpisodesSize = 0;
-  types[0].iRecordingGroupSize = 0;
-  types[0].iMaxRecordingsSize = 0;
+  {
+    kodi::addon::PVRTimerType type;
+    //type.SetDescription ("PVR_FREEBOX_TIMER_MANUAL");
+    type.SetId (PVR_FREEBOX_TIMER_MANUAL);
+    type.SetAttributes ( ATTRIBS |
+                         PVR_TIMER_TYPE_IS_MANUAL);
+    types.emplace_back (type);
+  }
 
   // One-shot EPG.
-  //strncpy (types[1].strDescription, "PVR_FREEBOX_TIMER_EPG", PVR_ADDON_TIMERTYPE_STRING_LENGTH - 1);
-  types[1].iId = PVR_FREEBOX_TIMER_EPG;
-  types[1].iAttributes = ATTRIBS |
-                         PVR_TIMER_TYPE_REQUIRES_EPG_TAG_ON_CREATE;
-  types[1].iPrioritiesSize = 0;
-  types[1].iLifetimesSize = 0;
-  types[1].iPreventDuplicateEpisodesSize = 0;
-  types[1].iRecordingGroupSize = 0;
-  types[1].iMaxRecordingsSize = 0;
+  {
+    kodi::addon::PVRTimerType type;
+    //type.SetDescription ("PVR_FREEBOX_TIMER_EPG");
+    type.SetId (PVR_FREEBOX_TIMER_EPG);
+    type.SetAttributes ( ATTRIBS |
+                         PVR_TIMER_TYPE_REQUIRES_EPG_TAG_ON_CREATE);
+    types.emplace_back (type);
+  }
 
   // One-shot generated (read-only).
-  //strncpy (types[2].strDescription, "PVR_FREEBOX_TIMER_GENERATED", PVR_ADDON_TIMERTYPE_STRING_LENGTH - 1);
-  types[2].iId = PVR_FREEBOX_TIMER_GENERATED;
-  types[2].iAttributes = ATTRIBS |
+  {
+    kodi::addon::PVRTimerType type;
+    //type.SetDescription ("PVR_FREEBOX_TIMER_GENERATED");
+    type.SetId (PVR_FREEBOX_TIMER_GENERATED);
+    type.SetAttributes ( ATTRIBS |
                          PVR_TIMER_TYPE_IS_READONLY |
                          PVR_TIMER_TYPE_FORBIDS_NEW_INSTANCES |
-                         PVR_TIMER_TYPE_SUPPORTS_ENABLE_DISABLE;
-  types[2].iPrioritiesSize = 0;
-  types[2].iLifetimesSize = 0;
-  types[2].iPreventDuplicateEpisodesSize = 0;
-  types[2].iRecordingGroupSize = 0;
-  types[2].iMaxRecordingsSize = 0;
+                         PVR_TIMER_TYPE_SUPPORTS_ENABLE_DISABLE);
+    types.emplace_back (type);
+  }
 
   // Repeating manual.
-  //strncpy (types[3].strDescription, "PVR_FREEBOX_GENERATOR_MANUAL", PVR_ADDON_TIMERTYPE_STRING_LENGTH - 1);
-  types[3].iId = PVR_FREEBOX_GENERATOR_MANUAL;
-  types[3].iAttributes = ATTRIBS |
+  {
+    kodi::addon::PVRTimerType type;
+    //type.SetDescription ("PVR_FREEBOX_GENERATOR_MANUAL");
+    type.SetId (PVR_FREEBOX_GENERATOR_MANUAL);
+    type.SetAttributes ( ATTRIBS |
                          PVR_TIMER_TYPE_IS_MANUAL |
                          PVR_TIMER_TYPE_IS_REPEATING |
-                         PVR_TIMER_TYPE_SUPPORTS_WEEKDAYS;
-  types[3].iPrioritiesSize = 0;
-  types[3].iLifetimesSize = 0;
-  types[3].iPreventDuplicateEpisodesSize = 0;
-  types[3].iRecordingGroupSize = 0;
-  types[3].iMaxRecordingsSize = 0;
+                         PVR_TIMER_TYPE_SUPPORTS_WEEKDAYS);
+    types.emplace_back (type);
+  }
 
   // Repeating EPG.
-  //strncpy (types[4].strDescription, "PVR_FREEBOX_GENERATOR_EPG", PVR_ADDON_TIMERTYPE_STRING_LENGTH - 1);
-  types[4].iId = PVR_FREEBOX_GENERATOR_EPG;
-  types[4].iAttributes = ATTRIBS |
+  {
+    kodi::addon::PVRTimerType type;
+    //type.SetDescription ("PVR_FREEBOX_GENERATOR_EPG");
+    type.SetId (PVR_FREEBOX_GENERATOR_EPG);
+    type.SetAttributes ( ATTRIBS |
                          PVR_TIMER_TYPE_IS_REPEATING |
                          PVR_TIMER_TYPE_SUPPORTS_WEEKDAYS |
-                         PVR_TIMER_TYPE_REQUIRES_EPG_TAG_ON_CREATE;
-  types[4].iPrioritiesSize = 0;
-  types[4].iLifetimesSize = 0;
-  types[4].iPreventDuplicateEpisodesSize = 0;
-  types[4].iRecordingGroupSize = 0;
-  types[4].iMaxRecordingsSize = 0;
+                         PVR_TIMER_TYPE_REQUIRES_EPG_TAG_ON_CREATE);
+    types.emplace_back (type);
+  }
 
-  *size = 5;
   return PVR_ERROR_NO_ERROR;
 }
 
-int Freebox::GetTimersAmount () const
+PVR_ERROR Freebox::GetTimersAmount (int & amount)
 {
   P8PLATFORM::CLockObject lock (m_mutex);
-  return m_generators.size () + m_timers.size ();
+  amount = m_generators.size () + m_timers.size ();
+  return PVR_ERROR_NO_ERROR;
 }
 
-PVR_ERROR Freebox::GetTimers (ADDON_HANDLE handle) const
+PVR_ERROR Freebox::GetTimers (kodi::addon::PVRTimersResultSet & results)
 {
   P8PLATFORM::CLockObject lock (m_mutex);
   //cout << "Freebox::GetTimers" << endl;
@@ -1695,8 +1784,7 @@ PVR_ERROR Freebox::GetTimers (ADDON_HANDLE handle) const
     const Generator & g = it.second;
 #endif
 
-    PVR_TIMER timer;
-    memset (&timer, 0, sizeof (PVR_TIMER));
+    kodi::addon::PVRTimer timer;
 
     time_t now = time (NULL);
     tm today = *localtime (&now);
@@ -1705,25 +1793,24 @@ PVR_ERROR Freebox::GetTimers (ADDON_HANDLE handle) const
     today.tm_sec  = 0;
     time_t start = mktime (&today);
 
-    timer.iTimerType         = PVR_FREEBOX_GENERATOR_MANUAL;
-    timer.iParentClientIndex = PVR_TIMER_NO_PARENT;
-    timer.iClientIndex       = id;
-    timer.iClientChannelUid  = ChannelId (g.channel_uuid);
-    timer.startTime          = start;
-    timer.endTime            = start + g.duration;
-    timer.iMarginStart       = g.margin_before / 60;
-    timer.iMarginEnd         = g.margin_after  / 60;
-    timer.iWeekdays          = (g.repeat_monday    ? PVR_WEEKDAY_MONDAY    : 0) |
-                               (g.repeat_tuesday   ? PVR_WEEKDAY_TUESDAY   : 0) |
-                               (g.repeat_wednesday ? PVR_WEEKDAY_WEDNESDAY : 0) |
-                               (g.repeat_thursday  ? PVR_WEEKDAY_THURSDAY  : 0) |
-                               (g.repeat_friday    ? PVR_WEEKDAY_FRIDAY    : 0) |
-                               (g.repeat_saturday  ? PVR_WEEKDAY_SATURDAY  : 0) |
-                               (g.repeat_sunday    ? PVR_WEEKDAY_SUNDAY    : 0);
+    timer.SetTimerType         (PVR_FREEBOX_GENERATOR_MANUAL);
+    timer.SetParentClientIndex (PVR_TIMER_NO_PARENT);
+    timer.SetClientIndex       (id);
+    timer.SetClientChannelUid  (ChannelId (g.channel_uuid));
+    timer.SetStartTime         (start);
+    timer.SetEndTime           (start + g.duration);
+    timer.SetMarginStart       (g.margin_before / 60);
+    timer.SetMarginEnd         (g.margin_after  / 60);
+    timer.SetWeekdays          ((g.repeat_monday    ? PVR_WEEKDAY_MONDAY    : 0) |
+                                (g.repeat_tuesday   ? PVR_WEEKDAY_TUESDAY   : 0) |
+                                (g.repeat_wednesday ? PVR_WEEKDAY_WEDNESDAY : 0) |
+                                (g.repeat_thursday  ? PVR_WEEKDAY_THURSDAY  : 0) |
+                                (g.repeat_friday    ? PVR_WEEKDAY_FRIDAY    : 0) |
+                                (g.repeat_saturday  ? PVR_WEEKDAY_SATURDAY  : 0) |
+                                (g.repeat_sunday    ? PVR_WEEKDAY_SUNDAY    : 0));
+    timer.SetTitle             (g.name);
 
-    strncpy (timer.strTitle, g.name.c_str (), PVR_ADDON_NAME_STRING_LENGTH - 1);
-
-    PVR->TransferTimerEntry (handle, &timer);
+    results.Add (timer);
   }
 
 #if __cplusplus >= 201703L
@@ -1737,39 +1824,38 @@ PVR_ERROR Freebox::GetTimers (ADDON_HANDLE handle) const
     const Timer & t = it.second;
 #endif
 
-    PVR_TIMER timer;
-    memset (&timer, 0, sizeof (PVR_TIMER));
+    kodi::addon::PVRTimer timer;
 
     if (t.has_record_gen)
     {
-      timer.iTimerType         = PVR_FREEBOX_TIMER_GENERATED;
-      timer.iParentClientIndex = m_unique_id ("generator/" + to_string (t.record_gen_id));
+      timer.SetTimerType         (PVR_FREEBOX_TIMER_GENERATED);
+      timer.SetParentClientIndex (m_unique_id ("generator/" + to_string (t.record_gen_id)));
     }
     else
     {
-      timer.iTimerType         = PVR_FREEBOX_TIMER_MANUAL;
-      timer.iParentClientIndex = PVR_TIMER_NO_PARENT;
+      timer.SetTimerType         (PVR_FREEBOX_TIMER_MANUAL);
+      timer.SetParentClientIndex (PVR_TIMER_NO_PARENT);
     }
 
-    timer.iClientIndex       = id;
-    timer.iClientChannelUid  = ChannelId (t.channel_uuid);
-    timer.startTime          = t.start;
-    timer.endTime            = t.end;
-    timer.iMarginStart       = t.margin_before / 60;
-    timer.iMarginEnd         = t.margin_after  / 60;
+    timer.SetClientIndex       (id);
+    timer.SetClientChannelUid  (ChannelId (t.channel_uuid));
+    timer.SetStartTime         (t.start);
+    timer.SetEndTime           (t.end);
+    timer.SetMarginStart       (t.margin_before / 60);
+    timer.SetMarginEnd         (t.margin_after  / 60);
 
-    /**/ if (t.state == "disabled")           timer.state = PVR_TIMER_STATE_DISABLED;
-    else if (t.state == "start_error")        timer.state = PVR_TIMER_STATE_ERROR;
-    else if (t.state == "waiting_start_time") timer.state = PVR_TIMER_STATE_SCHEDULED; // FIXME: t.conflict?
-    else if (t.state == "starting")           timer.state = PVR_TIMER_STATE_RECORDING;
-    else if (t.state == "running")            timer.state = PVR_TIMER_STATE_RECORDING;
-    else if (t.state == "running_error")      timer.state = PVR_TIMER_STATE_ERROR;
-    else if (t.state == "failed")             timer.state = PVR_TIMER_STATE_ERROR;
-    else if (t.state == "finished")           timer.state = PVR_TIMER_STATE_COMPLETED;
+    /**/ if (t.state == "disabled")           timer.SetState (PVR_TIMER_STATE_DISABLED);
+    else if (t.state == "start_error")        timer.SetState (PVR_TIMER_STATE_ERROR);
+    else if (t.state == "waiting_start_time") timer.SetState (PVR_TIMER_STATE_SCHEDULED); // FIXME: t.conflict?
+    else if (t.state == "starting")           timer.SetState (PVR_TIMER_STATE_RECORDING);
+    else if (t.state == "running")            timer.SetState (PVR_TIMER_STATE_RECORDING);
+    else if (t.state == "running_error")      timer.SetState (PVR_TIMER_STATE_ERROR);
+    else if (t.state == "failed")             timer.SetState (PVR_TIMER_STATE_ERROR);
+    else if (t.state == "finished")           timer.SetState (PVR_TIMER_STATE_COMPLETED);
 
-    strncpy (timer.strTitle, t.name.c_str (), PVR_ADDON_NAME_STRING_LENGTH - 1);
+    timer.SetTitle             (t.name);
 
-    PVR->TransferTimerEntry (handle, &timer);
+    results.Add (timer);
   }
 
   return PVR_ERROR_NO_ERROR;
@@ -1788,13 +1874,13 @@ inline Value freebox_generator_weekdays (int w, Document::AllocatorType & a)
   return r;
 }
 
-inline Document freebox_generator_request (const PVR_TIMER & timer)
+inline Document freebox_generator_request (const kodi::addon::PVRTimer & timer)
 {
-  string channel_uuid = "uuid-webtv-" + to_string (timer.iClientChannelUid);
-  string title        = timer.strTitle;
-  time_t start        = timer.startTime;
+  string channel_uuid = "uuid-webtv-" + to_string (timer.GetClientChannelUid ());
+  string title        = timer.GetTitle ();
+  time_t start        = timer.GetStartTime ();
   tm     date         = *localtime (&start);
-  int    duration     = timer.endTime - start;
+  int    duration     = timer.GetEndTime () - start;
 
   Document d (kObjectType);
   Document::AllocatorType & a = d.GetAllocator ();
@@ -1805,22 +1891,22 @@ inline Document freebox_generator_request (const PVR_TIMER & timer)
   p.AddMember ("start_min",     date.tm_min,  a);
   p.AddMember ("start_sec",     0,            a);
   p.AddMember ("duration",      duration,     a);
-  p.AddMember ("margin_before", timer.iMarginStart * 60, a);
-  p.AddMember ("margin_after",  timer.iMarginEnd   * 60, a);
+  p.AddMember ("margin_before", timer.GetMarginStart () * 60, a);
+  p.AddMember ("margin_after",  timer.GetMarginEnd ()   * 60, a);
   p.AddMember ("channel_uuid",  channel_uuid, a);
-  p.AddMember ("repeat_days",   freebox_generator_weekdays (timer.iWeekdays, a), a);
+  p.AddMember ("repeat_days",   freebox_generator_weekdays (timer.GetWeekdays (), a), a);
   d.AddMember ("params",        p, a);
   return d;
 }
 
-PVR_ERROR Freebox::AddTimer (const PVR_TIMER & timer)
+PVR_ERROR Freebox::AddTimer (const kodi::addon::PVRTimer & timer)
 {
   StartSession ();
 
-  int    type         = timer.iTimerType;
-  int    channel      = timer.iClientChannelUid;
+  int    type         = timer.GetTimerType ();
+  int    channel      = timer.GetClientChannelUid ();
   string channel_uuid = "uuid-webtv-" + to_string (channel);
-  string title        = timer.strTitle;
+  string title        = timer.GetTitle ();
 
   P8PLATFORM::CLockObject lock (m_mutex);
   switch (type)
@@ -1831,13 +1917,13 @@ PVR_ERROR Freebox::AddTimer (const PVR_TIMER & timer)
       //cout << "AddTimer: TIMER[" << type << ']' << endl;
 
       string subtitle;
-      if (timer.iEpgUid != EPG_TAG_INVALID_UID)
+      if (timer.GetEPGUid () != EPG_TAG_INVALID_UID)
       {
         Document epg;
-        string epg_id = "pluri_" + to_string (timer.iEpgUid);
+        string epg_id = "pluri_" + to_string (timer.GetEPGUid ());
         if (HttpGet ("/api/v6/tv/epg/programs/" + epg_id, &epg))
         {
-          Event e (epg ["result"], channel, timer.startTime);
+          Event e (epg ["result"], channel, timer.GetStartTime ());
           ostringstream oss;
           if (e.season  != 0) oss << 'S' << setfill ('0') << setw (2) << e.season;
           if (e.episode != 0) oss << 'E' << setfill ('0') << setw (2) << e.episode;
@@ -1848,18 +1934,18 @@ PVR_ERROR Freebox::AddTimer (const PVR_TIMER & timer)
 
       Document d (kObjectType);
       Document::AllocatorType & a = d.GetAllocator ();
-      d.AddMember ("start",           (int64_t) timer.startTime, a);
-      d.AddMember ("end",             (int64_t) timer.endTime,   a);
-      d.AddMember ("margin_before",   timer.iMarginStart * 60,   a);
-      d.AddMember ("margin_after",    timer.iMarginEnd   * 60,   a);
-      d.AddMember ("channel_uuid",    channel_uuid,              a);
-      d.AddMember ("channel_type",    "",                        a);
-      d.AddMember ("channel_quality", "auto",                    a);
-      d.AddMember ("broadcast_type",  "tv",                      a);
-      d.AddMember ("name",            title,                     a);
-      d.AddMember ("subname",         subtitle,                  a);
-    //d.AddMember ("media",           "Disque dur",              a);
-    //d.AddMember ("path",            "Enregistrements",         a);
+      d.AddMember ("start",           (int64_t) timer.GetStartTime (), a);
+      d.AddMember ("end",             (int64_t) timer.GetEndTime (),   a);
+      d.AddMember ("margin_before",   timer.GetMarginStart () * 60,    a);
+      d.AddMember ("margin_after",    timer.GetMarginEnd ()   * 60,    a);
+      d.AddMember ("channel_uuid",    channel_uuid,                    a);
+      d.AddMember ("channel_type",    "",                              a);
+      d.AddMember ("channel_quality", "auto",                          a);
+      d.AddMember ("broadcast_type",  "tv",                            a);
+      d.AddMember ("name",            title,                           a);
+      d.AddMember ("subname",         subtitle,                        a);
+    //d.AddMember ("media",           "Disque dur",                    a);
+    //d.AddMember ("path",            "Enregistrements",               a);
 
       // Add timer (Freebox).
       Document response;
@@ -1870,7 +1956,7 @@ PVR_ERROR Freebox::AddTimer (const PVR_TIMER & timer)
       int id     = response["result"]["id"].GetInt ();
       int unique = m_unique_id ("programmed/" + to_string (id));
       m_timers.emplace (unique, Timer (response["result"]));
-      PVR->TriggerTimerUpdate ();
+      TriggerTimerUpdate ();
 
       // Update recordings if timer is running.
       string state = JSON<string> (response["result"], "state");
@@ -1917,11 +2003,11 @@ PVR_ERROR Freebox::AddTimer (const PVR_TIMER & timer)
   return PVR_ERROR_NO_ERROR;
 }
 
-PVR_ERROR Freebox::UpdateTimer (const PVR_TIMER & timer)
+PVR_ERROR Freebox::UpdateTimer (const kodi::addon::PVRTimer& timer)
 {
   StartSession ();
 
-  int type = timer.iTimerType;
+  int type = timer.GetTimerType ();
 
   switch (type)
   {
@@ -1929,31 +2015,31 @@ PVR_ERROR Freebox::UpdateTimer (const PVR_TIMER & timer)
     case PVR_FREEBOX_TIMER_EPG :
     {
       P8PLATFORM::CLockObject lock (m_mutex);
-      auto i = m_timers.find (timer.iClientIndex);
+      auto i = m_timers.find (timer.GetClientIndex ());
       if (i == m_timers.end ())
         return PVR_ERROR_SERVER_ERROR;
 
       int id = i->second.id;
       //cout << "UpdateTimer: TIMER[" << type << "]: " << timer.iClientIndex << " > " << id << endl;
 
-      string channel_uuid = "uuid-webtv-" + to_string (timer.iClientChannelUid);
-      string title        = timer.strTitle;
+      string channel_uuid = "uuid-webtv-" + to_string (timer.GetClientChannelUid ());
+      string title        = timer.GetTitle ();
 
       // Payload.
       Document d (kObjectType);
       Document::AllocatorType & a = d.GetAllocator ();
-    //d.AddMember ("enabled",         enabled,                   a);
-      d.AddMember ("start",           (int64_t) timer.startTime, a);
-      d.AddMember ("end",             (int64_t) timer.endTime,   a);
-      d.AddMember ("margin_before",   timer.iMarginStart * 60,   a);
-      d.AddMember ("margin_after",    timer.iMarginEnd   * 60,   a);
-      d.AddMember ("channel_uuid",    channel_uuid,              a);
-    //d.AddMember ("channel_type",    "",                        a);
-    //d.AddMember ("channel_quality", "auto",                    a);
-      d.AddMember ("name",            title,                     a);
-    //d.AddMember ("subname",         "",                        a);
-    //d.AddMember ("media",           "Disque dur",              a);
-    //d.AddMember ("path",            "Enregistrements",         a);
+    //d.AddMember ("enabled",         enabled,                         a);
+      d.AddMember ("start",           (int64_t) timer.GetStartTime (), a);
+      d.AddMember ("end",             (int64_t) timer.GetEndTime (),   a);
+      d.AddMember ("margin_before",   timer.GetMarginStart () * 60,    a);
+      d.AddMember ("margin_after",    timer.GetMarginEnd ()   * 60,    a);
+      d.AddMember ("channel_uuid",    channel_uuid,                    a);
+    //d.AddMember ("channel_type",    "",                              a);
+    //d.AddMember ("channel_quality", "auto",                          a);
+      d.AddMember ("name",            title,                           a);
+    //d.AddMember ("subname",         "",                              a);
+    //d.AddMember ("media",           "Disque dur",                    a);
+    //d.AddMember ("path",            "Enregistrements",               a);
 
       // Update timer (Freebox).
       Document response;
@@ -1963,7 +2049,7 @@ PVR_ERROR Freebox::UpdateTimer (const PVR_TIMER & timer)
       // Update timer (locally).
       i->second = Timer (response["result"]);
       //cout << "UpdateTimer: TIMER[" << type << "]: '" << i->second.state << "'" << endl;
-      PVR->TriggerTimerUpdate ();
+      TriggerTimerUpdate ();
 
       break;
     }
@@ -1971,7 +2057,7 @@ PVR_ERROR Freebox::UpdateTimer (const PVR_TIMER & timer)
     case PVR_FREEBOX_TIMER_GENERATED :
     {
       P8PLATFORM::CLockObject lock (m_mutex);
-      auto i = m_timers.find (timer.iClientIndex);
+      auto i = m_timers.find (timer.GetClientIndex ());
       if (i == m_timers.end ())
         return PVR_ERROR_SERVER_ERROR;
 
@@ -1980,7 +2066,7 @@ PVR_ERROR Freebox::UpdateTimer (const PVR_TIMER & timer)
 
       // Payload.
       Document d (kObjectType);
-      d.AddMember ("enabled", timer.state != PVR_TIMER_STATE_DISABLED, d.GetAllocator ());
+      d.AddMember ("enabled", timer.GetState () != PVR_TIMER_STATE_DISABLED, d.GetAllocator ());
 
       // Update generated timer (Freebox).
       Document response;
@@ -1990,7 +2076,7 @@ PVR_ERROR Freebox::UpdateTimer (const PVR_TIMER & timer)
       // Update generated timer (locally).
       i->second = Timer (response["result"]);
       //cout << "UpdateTimer: TIMER_GENERATED: '" << i->second.state << "'" << endl;
-      PVR->TriggerTimerUpdate ();
+      TriggerTimerUpdate ();
 
       break;
     }
@@ -1999,7 +2085,7 @@ PVR_ERROR Freebox::UpdateTimer (const PVR_TIMER & timer)
     case PVR_FREEBOX_GENERATOR_EPG :
     {
       P8PLATFORM::CLockObject lock (m_mutex);
-      auto i = m_generators.find (timer.iClientIndex);
+      auto i = m_generators.find (timer.GetClientIndex ());
       if (i == m_generators.end ())
         return PVR_ERROR_SERVER_ERROR;
 
@@ -2032,11 +2118,11 @@ PVR_ERROR Freebox::UpdateTimer (const PVR_TIMER & timer)
   return PVR_ERROR_NO_ERROR;
 }
 
-PVR_ERROR Freebox::DeleteTimer (const PVR_TIMER & timer, bool force)
+PVR_ERROR Freebox::DeleteTimer (const kodi::addon::PVRTimer & timer, bool force)
 {
   StartSession ();
 
-  int type = timer.iTimerType;
+  int type = timer.GetTimerType ();
 
   switch (type)
   {
@@ -2044,7 +2130,7 @@ PVR_ERROR Freebox::DeleteTimer (const PVR_TIMER & timer, bool force)
     case PVR_FREEBOX_TIMER_EPG :
     {
       P8PLATFORM::CLockObject lock (m_mutex);
-      auto i = m_timers.find (timer.iClientIndex);
+      auto i = m_timers.find (timer.GetClientIndex ());
       if (i == m_timers.end ())
         return PVR_ERROR_SERVER_ERROR;
 
@@ -2058,10 +2144,10 @@ PVR_ERROR Freebox::DeleteTimer (const PVR_TIMER & timer, bool force)
 
       // Delete timer (locally).
       m_timers.erase (i);
-      PVR->TriggerTimerUpdate ();
+      TriggerTimerUpdate ();
 
       // Update recordings if timer was running.
-      if (timer.state == PVR_TIMER_STATE_RECORDING)
+      if (timer.GetState () == PVR_TIMER_STATE_RECORDING)
         ProcessRecordings ();
 
       break;
@@ -2071,12 +2157,12 @@ PVR_ERROR Freebox::DeleteTimer (const PVR_TIMER & timer, bool force)
     case PVR_FREEBOX_GENERATOR_EPG :
     {
       P8PLATFORM::CLockObject lock (m_mutex);
-      auto i = m_generators.find (timer.iClientIndex);
+      auto i = m_generators.find (timer.GetClientIndex ());
       if (i == m_generators.end ())
         return PVR_ERROR_SERVER_ERROR;
 
       int id = i->second.id;
-      //cout << "DeleteTimer: GENERATOR[" << type << "]: " << timer.iClientIndex << " > " << id << endl;
+      //cout << "DeleteTimer: GENERATOR[" << type << "]: " << timer.GetClientIndex () << " > " << id << endl;
 
       // Delete generator (Freebox).
       Document response;
@@ -2092,7 +2178,7 @@ PVR_ERROR Freebox::DeleteTimer (const PVR_TIMER & timer, bool force)
 
       // Delete generator (locally).
       m_generators.erase (i);
-      PVR->TriggerTimerUpdate ();
+      TriggerTimerUpdate ();
 
       break;
     }
@@ -2111,65 +2197,49 @@ PVR_ERROR Freebox::DeleteTimer (const PVR_TIMER & timer, bool force)
 // H O O K S ///////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 
-int freebox_dialog_select (const vector<long> & v, int selected = -1)
-{
-  // Localize labels.
-  vector<char *> labels;
-  transform (v.begin (), v.end (), back_inserter (labels),
-             [] (long id) {return XBMC->GetLocalizedString (id);});
-
-  // GUI selection.
-  int r = GUI->Dialog_Select (labels[0], (const char **) &(labels[1]), labels.size () - 1, selected);
-
-  // Free localized labels.
-  for (char * label : labels) XBMC->FreeString (label);
-
-  return r;
-}
-
 /* static */
 enum Freebox::Source Freebox::DialogSource (enum Source selected)
 {
-  static const vector<long> LABELS =
+  // Heading.
+  string heading = kodi::GetLocalizedString (PVR_FREEBOX_STRING_CHANNEL_SOURCE);
+
+  // Entries.
+  const vector<string> LABELS =
   {
-    // Heading.
-    PVR_FREEBOX_STRING_CHANNEL_SOURCE,
-    // Entries.
-    PVR_FREEBOX_STRING_CHANNEL_SOURCE_AUTO,
-    PVR_FREEBOX_STRING_CHANNEL_SOURCE_IPTV,
-    PVR_FREEBOX_STRING_CHANNEL_SOURCE_DVB
+    kodi::GetLocalizedString (PVR_FREEBOX_STRING_CHANNEL_SOURCE_AUTO),
+    kodi::GetLocalizedString (PVR_FREEBOX_STRING_CHANNEL_SOURCE_IPTV),
+    kodi::GetLocalizedString (PVR_FREEBOX_STRING_CHANNEL_SOURCE_DVB)
   };
 
-  return (Source) freebox_dialog_select (LABELS, (int) selected);
+  return (Source) kodi::gui::dialogs::Select::Show (heading, LABELS, (int) selected);
 }
 
 /* static */
 enum Freebox::Quality Freebox::DialogQuality (enum Quality selected)
 {
-  static const vector<long> LABELS =
+  // Heading.
+  string heading = kodi::GetLocalizedString (PVR_FREEBOX_STRING_CHANNEL_QUALITY);
+
+  // Entries.
+  const vector<string> LABELS =
   {
-    // Heading.
-    PVR_FREEBOX_STRING_CHANNEL_QUALITY,
-    // Entries.
-    PVR_FREEBOX_STRING_CHANNEL_QUALITY_AUTO,
-    PVR_FREEBOX_STRING_CHANNEL_QUALITY_HD,
-    PVR_FREEBOX_STRING_CHANNEL_QUALITY_SD,
-    PVR_FREEBOX_STRING_CHANNEL_QUALITY_LD,
-    PVR_FREEBOX_STRING_CHANNEL_QUALITY_3D
+    kodi::GetLocalizedString (PVR_FREEBOX_STRING_CHANNEL_QUALITY_AUTO),
+    kodi::GetLocalizedString (PVR_FREEBOX_STRING_CHANNEL_QUALITY_HD),
+    kodi::GetLocalizedString (PVR_FREEBOX_STRING_CHANNEL_QUALITY_SD),
+    kodi::GetLocalizedString (PVR_FREEBOX_STRING_CHANNEL_QUALITY_LD),
+    kodi::GetLocalizedString (PVR_FREEBOX_STRING_CHANNEL_QUALITY_3D)
   };
 
-  return (Quality) freebox_dialog_select (LABELS, (int) selected);
+  return (Quality) kodi::gui::dialogs::Select::Show (heading, LABELS, (int) selected);
 }
 
-PVR_ERROR Freebox::MenuHook (const PVR_MENUHOOK & hook, const PVR_MENUHOOK_DATA & data)
+PVR_ERROR Freebox::CallChannelMenuHook (const kodi::addon::PVRMenuhook & menuhook, const kodi::addon::PVRChannel & item)
 {
-  switch (hook.iHookId)
+  switch (menuhook.GetHookId ())
   {
     case PVR_FREEBOX_MENUHOOK_CHANNEL_SOURCE:
     {
-      const PVR_CHANNEL & channel = data.data.channel;
-
-      unsigned int id = channel.iUniqueId;
+      unsigned int id = item.GetUniqueId ();
       SetChannelSource (id, DialogSource (ChannelSource (id, false)));
 
       return PVR_ERROR_NO_ERROR;
@@ -2177,9 +2247,7 @@ PVR_ERROR Freebox::MenuHook (const PVR_MENUHOOK & hook, const PVR_MENUHOOK_DATA 
 
     case PVR_FREEBOX_MENUHOOK_CHANNEL_QUALITY:
     {
-      const PVR_CHANNEL & channel = data.data.channel;
-
-      unsigned int id = channel.iUniqueId;
+      unsigned int id = item.GetUniqueId ();
       SetChannelQuality (id, DialogQuality (ChannelQuality (id, false)));
 
       return PVR_ERROR_NO_ERROR;
@@ -2189,3 +2257,4 @@ PVR_ERROR Freebox::MenuHook (const PVR_MENUHOOK & hook, const PVR_MENUHOOK_DATA 
   return PVR_ERROR_NO_ERROR;
 }
 
+ADDONCREATOR(Freebox)
