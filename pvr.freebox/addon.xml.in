@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <addon
   id="pvr.freebox"
-  version="3.0.0"
+  version="4.0.0"
   name="PVR Freebox TV"
   provider-name="aassif">
   <requires>@ADDON_DEPENDS@</requires>
   <extension
-    point="xbmc.pvrclient"
+    point="kodi.pvrclient"
     library_@PLATFORM@="@LIBRARY_FILENAME@"/>
   <extension point="xbmc.addon.metadata">
     <summary lang="fr_FR">Extension enregistreur vidéo (PVR) pour Freebox TV. https://github.com/aassif/pvr.freebox</summary>
