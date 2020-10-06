@@ -25,8 +25,7 @@
 #include <queue>
 #include <algorithm> // find_if
 #include "kodi/addon-instance/PVR.h"
-#include "p8-platform/os.h"
-#include "p8-platform/threads/threads.h"
+#include "kodi/tools/Thread.h"
 #include "rapidjson/document.h"
 
 #define PVR_FREEBOX_VERSION STR(FREEBOX_VERSION)
@@ -96,7 +95,7 @@ class Index
 class ATTRIBUTE_HIDDEN Freebox :
   public kodi::addon::CAddonBase,
   public kodi::addon::CInstancePVRClient,
-  public P8PLATFORM::CThread
+  public kodi::tools::CThread
 {
   protected:
     inline static unsigned int ChannelId (const std::string & uuid)
@@ -375,7 +374,7 @@ class ATTRIBUTE_HIDDEN Freebox :
     PVR_ERROR CallChannelMenuHook (const kodi::addon::PVRMenuhook &, const kodi::addon::PVRChannel &) override;
 
   protected:
-    virtual void * Process ();
+    void Process () override;
 
     void ReadSettings ();
 
@@ -463,7 +462,7 @@ class ATTRIBUTE_HIDDEN Freebox :
     std::string URL (const std::string & query) const;
 
   private:
-    mutable P8PLATFORM::CMutex m_mutex;
+    mutable std::recursive_mutex m_mutex;
     // Add-on path.
     std::string m_path;
     // Freebox Server.
