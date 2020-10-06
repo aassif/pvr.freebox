@@ -34,8 +34,9 @@
 
 #include "kodi/Filesystem.h"
 #include "kodi/General.h"
+#include "kodi/Network.h"
 #include "kodi/gui/dialogs/Select.h"
-#include "p8-platform/util/StringUtils.h"
+#include "kodi/tools/StringUtils.h"
 
 #include "Freebox.h"
 
@@ -47,6 +48,10 @@
 #include "rapidjson/stringbuffer.h"
 #include "rapidjson/istreamwrapper.h"
 #include "rapidjson/ostreamwrapper.h"
+
+#ifdef CreateDirectory
+#undef CreateDirectory
+#endif // CreateDirectory
 
 using namespace std;
 using namespace rapidjson;
@@ -190,10 +195,10 @@ bool Freebox::Http (const string & custom,
                     const Document & request,
                     Document * doc, Type type) const
 {
-  m_mutex.Lock ();
+  m_mutex.lock ();
   string url = URL (path);
   string session = m_session_token;
-  m_mutex.Unlock ();
+  m_mutex.unlock ();
 
   StringBuffer buffer;
   if (! request.IsNull ())
@@ -283,29 +288,21 @@ string Freebox::Password (const string & token, const string & challenge)
 
 bool Freebox::StartSession ()
 {
-  P8PLATFORM::CLockObject lock (m_mutex);
+  lock_guard<recursive_mutex> lock (m_mutex);
 
   if (m_app_token.empty ())
   {
     string file = m_path + "app_token.txt";
     if (! kodi::vfs::FileExists (file, false))
     {
-#ifndef HOST_NAME_MAX
-  #ifdef _POSIX_HOST_NAME_MAX
-    #define HOST_NAME_MAX _POSIX_HOST_NAME_MAX
-  #else
-    #define HOST_NAME_MAX 256
-  #endif
-#endif
-      char hostname [HOST_NAME_MAX + 1];
-      gethostname (hostname, HOST_NAME_MAX);
+      const string hostname = kodi::network::GetHostname ();
       cout << "StartSession: hostname: " << hostname << endl;
 
       Document request (kObjectType);
       request.AddMember ("app_id",      PVR_FREEBOX_APP_ID,      request.GetAllocator ());
       request.AddMember ("app_name",    PVR_FREEBOX_APP_NAME,    request.GetAllocator ());
       request.AddMember ("app_version", PVR_FREEBOX_APP_VERSION, request.GetAllocator ());
-      request.AddMember ("device_name", StringRef (hostname),    request.GetAllocator ());
+      request.AddMember ("device_name", hostname,                request.GetAllocator ());
 
       Document response;
       if (! HttpPost ("/api/v6/login/authorize", request, &response)) return false;
@@ -922,13 +919,13 @@ Freebox::~Freebox ()
 
 void Freebox::SetServer (const string & server)
 {
-  P8PLATFORM::CLockObject lock (m_mutex);
+  lock_guard<recursive_mutex> lock (m_mutex);
   m_server = server;
 }
 
 string Freebox::GetServer () const
 {
-  P8PLATFORM::CLockObject lock (m_mutex);
+  lock_guard<recursive_mutex> lock (m_mutex);
   return m_server;
 }
 
@@ -940,43 +937,43 @@ string Freebox::URL (const string & query) const
 
 void Freebox::SetSource (Source s)
 {
-  P8PLATFORM::CLockObject lock (m_mutex);
+  lock_guard<recursive_mutex> lock (m_mutex);
   m_tv_source = s;
 }
 
 void Freebox::SetQuality (Quality q)
 {
-  P8PLATFORM::CLockObject lock (m_mutex);
+  lock_guard<recursive_mutex> lock (m_mutex);
   m_tv_quality = q;
 }
 
 void Freebox::SetProtocol (Protocol p)
 {
-  P8PLATFORM::CLockObject lock (m_mutex);
+  lock_guard<recursive_mutex> lock (m_mutex);
   m_tv_protocol = p;
 }
 
 void Freebox::SetDays (int d)
 {
-  P8PLATFORM::CLockObject lock (m_mutex);
+  lock_guard<recursive_mutex> lock (m_mutex);
   m_epg_days = d != EPG_TIMEFRAME_UNLIMITED ? min (d, 7) : 7;
 }
 
 void Freebox::SetExtended (bool e)
 {
-  P8PLATFORM::CLockObject lock (m_mutex);
+  lock_guard<recursive_mutex> lock (m_mutex);
   m_epg_extended = e;
 }
 
 void Freebox::SetColors (bool c)
 {
-  P8PLATFORM::CLockObject lock (m_mutex);
+  lock_guard<recursive_mutex> lock (m_mutex);
   m_epg_colors = c;
 }
 
 void Freebox::SetDelay (int d)
 {
-  P8PLATFORM::CLockObject lock (m_mutex);
+  lock_guard<recursive_mutex> lock (m_mutex);
   m_delay = d;
 }
 
@@ -996,10 +993,10 @@ void Freebox::ProcessEvent (const Event & e, EPG_EVENT_STATE state)
     return;
   }
 
-  m_mutex.Lock ();
+  m_mutex.lock ();
   bool colors = m_epg_colors;
   string picture = ! e.picture.empty () ? URL (e.picture) : "";
-  m_mutex.Unlock ();
+  m_mutex.unlock ();
 
   string actors   = e.GetCastActors   ();
   string director = e.GetCastDirector ();
@@ -1056,7 +1053,7 @@ void Freebox::ProcessEvent (const Event & e, EPG_EVENT_STATE state)
 void Freebox::ProcessEvent (const Value & event, unsigned int channel, time_t date, EPG_EVENT_STATE state)
 {
   {
-    P8PLATFORM::CLockObject lock (m_mutex);
+    lock_guard<recursive_mutex> lock (m_mutex);
     auto f = m_tv_channels.find (channel);
     if (f == m_tv_channels.end () || f->second.IsHidden ()) return;
   }
@@ -1065,7 +1062,7 @@ void Freebox::ProcessEvent (const Value & event, unsigned int channel, time_t da
 
   if (state == EPG_EVENT_CREATED)
   {
-    P8PLATFORM::CLockObject lock (m_mutex);
+    lock_guard<recursive_mutex> lock (m_mutex);
     if (m_epg_extended)
     {
       string query = "/api/v6/tv/epg/programs/" + e.uuid;
@@ -1091,14 +1088,14 @@ void Freebox::ProcessChannel (const Value & epg, unsigned int channel)
     string query = "/api/v6/tv/epg/programs/" + uuid;
 
     {
-      P8PLATFORM::CLockObject lock (m_mutex);
+      lock_guard<recursive_mutex> lock (m_mutex);
       if (m_epg_cache.count (query) > 0) continue;
     }
 
     ProcessEvent (event, channel, date, EPG_EVENT_CREATED);
 
     {
-      P8PLATFORM::CLockObject lock (m_mutex);
+      lock_guard<recursive_mutex> lock (m_mutex);
       m_epg_cache.insert (query);
     }
   }
@@ -1113,21 +1110,21 @@ void Freebox::ProcessFull (const Value & epg)
   }
 }
 
-void * Freebox::Process ()
+void Freebox::Process ()
 {
-  while (! IsStopped ())
+  while (! m_threadStop )
   {
-    m_mutex.Lock ();
+    m_mutex.lock ();
     int    delay = m_delay;
     int    days  = m_epg_days;
     time_t now   = time (NULL);
     time_t end   = now + days * 24 * 60 * 60;
     time_t last  = max (now, m_epg_last);
-    m_mutex.Unlock ();
+    m_mutex.unlock ();
 
     if (StartSession ())
     {
-      P8PLATFORM::CLockObject lock (m_mutex);
+      lock_guard<recursive_mutex> lock (m_mutex);
       ProcessGenerators ();
       ProcessTimers ();
       ProcessRecordings ();
@@ -1138,7 +1135,7 @@ void * Freebox::Process ()
       string epoch = to_string (t);
       string query = "/api/v6/tv/epg/by_time/" + epoch;
       {
-        P8PLATFORM::CLockObject lock (m_mutex);
+        lock_guard<recursive_mutex> lock (m_mutex);
         m_epg_queries.emplace (FULL, query);
         //kodi::Log (ADDON_LOG_INFO, "Queued: '%s' %d < %d", query.c_str (), t, end);
         m_epg_last = t + 3600;
@@ -1147,7 +1144,7 @@ void * Freebox::Process ()
 
     Query q;
     {
-      P8PLATFORM::CLockObject lock (m_mutex);
+      lock_guard<recursive_mutex> lock (m_mutex);
       if (! m_epg_queries.empty ())
       {
         q = m_epg_queries.front ();
@@ -1174,14 +1171,12 @@ void * Freebox::Process ()
     }
     else
     {
-      P8PLATFORM::CLockObject lock (m_mutex);
+      lock_guard<recursive_mutex> lock (m_mutex);
       m_epg_cache.clear ();
     }
 
     Sleep (delay * 1000);
   }
-
-  return NULL;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1328,14 +1323,14 @@ PVR_ERROR Freebox::GetEPGForChannel (int channelUid, time_t start, time_t end, k
 
 PVR_ERROR Freebox::GetChannelsAmount (int & amount)
 {
-  P8PLATFORM::CLockObject lock (m_mutex);
+  lock_guard<recursive_mutex> lock (m_mutex);
   amount = m_tv_channels.size ();
   return PVR_ERROR_NO_ERROR;
 }
 
 PVR_ERROR Freebox::GetChannels (bool radio, kodi::addon::PVRChannelsResultSet & results)
 {
-  P8PLATFORM::CLockObject lock (m_mutex);
+  lock_guard<recursive_mutex> lock (m_mutex);
 
   //for (auto i = m_tv_channels.begin (); i != m_tv_channels.end (); ++i)
   for (auto i : m_tv_channels)
@@ -1346,7 +1341,7 @@ PVR_ERROR Freebox::GetChannels (bool radio, kodi::addon::PVRChannelsResultSet & 
 
 PVR_ERROR Freebox::GetChannelGroupsAmount (int & amount)
 {
-  P8PLATFORM::CLockObject lock (m_mutex);
+  lock_guard<recursive_mutex> lock (m_mutex);
   amount = 0;
   return PVR_ERROR_NO_ERROR;
 }
@@ -1366,7 +1361,7 @@ PVR_ERROR Freebox::GetChannelStreamProperties (const kodi::addon::PVRChannel & c
   enum Source  source  = ChannelSource  (channel.GetUniqueId (), true);
   enum Quality quality = ChannelQuality (channel.GetUniqueId (), true);
 
-  P8PLATFORM::CLockObject lock (m_mutex);
+  lock_guard<recursive_mutex> lock (m_mutex);
   auto f = m_tv_channels.find (channel.GetUniqueId ());
   if (f != m_tv_channels.end ())
     return f->second.GetStreamProperties (source, quality, properties);
@@ -1376,14 +1371,14 @@ PVR_ERROR Freebox::GetChannelStreamProperties (const kodi::addon::PVRChannel & c
 
 enum Freebox::Source Freebox::ChannelSource (unsigned int id, bool fallback)
 {
-  P8PLATFORM::CLockObject lock (m_mutex);
+  lock_guard<recursive_mutex> lock (m_mutex);
   auto f = m_tv_prefs_source.find (id);
   return f != m_tv_prefs_source.end () ? f->second : (fallback ? m_tv_source : Source::DEFAULT);
 }
 
 void Freebox::SetChannelSource (unsigned int id, enum Source source)
 {
-  P8PLATFORM::CLockObject lock (m_mutex);
+  lock_guard<recursive_mutex> lock (m_mutex);
   switch (source)
   {
     case Source::AUTO : m_tv_prefs_source.erase (id); break;
@@ -1405,14 +1400,14 @@ void Freebox::SetChannelSource (unsigned int id, enum Source source)
 
 enum Freebox::Quality Freebox::ChannelQuality (unsigned int id, bool fallback)
 {
-  P8PLATFORM::CLockObject lock (m_mutex);
+  lock_guard<recursive_mutex> lock (m_mutex);
   auto f = m_tv_prefs_quality.find (id);
   return f != m_tv_prefs_quality.end () ? f->second : (fallback ? m_tv_quality : Quality::DEFAULT);
 }
 
 void Freebox::SetChannelQuality (unsigned int id, enum Quality quality)
 {
-  P8PLATFORM::CLockObject lock (m_mutex);
+  lock_guard<recursive_mutex> lock (m_mutex);
   switch (quality)
   {
     case Quality::AUTO   : m_tv_prefs_quality.erase (id); break;
@@ -1477,14 +1472,14 @@ void Freebox::ProcessRecordings ()
 
 PVR_ERROR Freebox::GetRecordingsAmount (bool deleted, int& amount)
 {
-  P8PLATFORM::CLockObject lock (m_mutex);
+  lock_guard<recursive_mutex> lock (m_mutex);
   amount = m_recordings.size ();
   return PVR_ERROR_NO_ERROR;
 }
 
 PVR_ERROR Freebox::GetRecordings (bool deleted, kodi::addon::PVRRecordingsResultSet & results)
 {
-  P8PLATFORM::CLockObject lock (m_mutex);
+  lock_guard<recursive_mutex> lock (m_mutex);
 
 #if __cplusplus >= 201703L
   for (auto & [id, r] : m_recordings)
@@ -1520,7 +1515,7 @@ PVR_ERROR Freebox::GetRecordingSize (const kodi::addon::PVRRecording & recording
 {
   int id = stoi (recording.GetRecordingId ());
 
-  P8PLATFORM::CLockObject lock (m_mutex);
+  lock_guard<recursive_mutex> lock (m_mutex);
   auto i = m_recordings.find (id);
   if (i == m_recordings.end ())
     return PVR_ERROR_SERVER_ERROR;
@@ -1533,7 +1528,7 @@ PVR_ERROR Freebox::GetRecordingStreamProperties (const kodi::addon::PVRRecording
 {
   int id = stoi (recording.GetRecordingId ());
 
-  P8PLATFORM::CLockObject lock (m_mutex);
+  lock_guard<recursive_mutex> lock (m_mutex);
   auto i = m_recordings.find (id);
   if (i == m_recordings.end ())
     return PVR_ERROR_SERVER_ERROR;
@@ -1554,7 +1549,7 @@ PVR_ERROR Freebox::RenameRecording (const kodi::addon::PVRRecording & recording)
   string name    = recording.GetTitle ();
   string subname = recording.GetEpisodeName ();
 
-  P8PLATFORM::CLockObject lock (m_mutex);
+  lock_guard<recursive_mutex> lock (m_mutex);
   auto i = m_recordings.find (id);
   if (i == m_recordings.end ())
     return PVR_ERROR_SERVER_ERROR;
@@ -1582,7 +1577,7 @@ PVR_ERROR Freebox::DeleteRecording (const kodi::addon::PVRRecording & recording)
 
   int id = stoi (recording.GetRecordingId ());
 
-  P8PLATFORM::CLockObject lock (m_mutex);
+  lock_guard<recursive_mutex> lock (m_mutex);
   auto i = m_recordings.find (id);
   if (i == m_recordings.end ())
     return PVR_ERROR_SERVER_ERROR;
@@ -1763,14 +1758,14 @@ PVR_ERROR Freebox::GetTimerTypes (std::vector<kodi::addon::PVRTimerType> & types
 
 PVR_ERROR Freebox::GetTimersAmount (int & amount)
 {
-  P8PLATFORM::CLockObject lock (m_mutex);
+  lock_guard<recursive_mutex> lock (m_mutex);
   amount = m_generators.size () + m_timers.size ();
   return PVR_ERROR_NO_ERROR;
 }
 
 PVR_ERROR Freebox::GetTimers (kodi::addon::PVRTimersResultSet & results)
 {
-  P8PLATFORM::CLockObject lock (m_mutex);
+  lock_guard<recursive_mutex> lock (m_mutex);
   //cout << "Freebox::GetTimers" << endl;
 
 #if __cplusplus >= 201703L
@@ -1908,7 +1903,7 @@ PVR_ERROR Freebox::AddTimer (const kodi::addon::PVRTimer & timer)
   string channel_uuid = "uuid-webtv-" + to_string (channel);
   string title        = timer.GetTitle ();
 
-  P8PLATFORM::CLockObject lock (m_mutex);
+  lock_guard<recursive_mutex> lock (m_mutex);
   switch (type)
   {
     case PVR_FREEBOX_TIMER_MANUAL :
@@ -2014,7 +2009,7 @@ PVR_ERROR Freebox::UpdateTimer (const kodi::addon::PVRTimer& timer)
     case PVR_FREEBOX_TIMER_MANUAL :
     case PVR_FREEBOX_TIMER_EPG :
     {
-      P8PLATFORM::CLockObject lock (m_mutex);
+      lock_guard<recursive_mutex> lock (m_mutex);
       auto i = m_timers.find (timer.GetClientIndex ());
       if (i == m_timers.end ())
         return PVR_ERROR_SERVER_ERROR;
@@ -2056,7 +2051,7 @@ PVR_ERROR Freebox::UpdateTimer (const kodi::addon::PVRTimer& timer)
 
     case PVR_FREEBOX_TIMER_GENERATED :
     {
-      P8PLATFORM::CLockObject lock (m_mutex);
+      lock_guard<recursive_mutex> lock (m_mutex);
       auto i = m_timers.find (timer.GetClientIndex ());
       if (i == m_timers.end ())
         return PVR_ERROR_SERVER_ERROR;
@@ -2084,7 +2079,7 @@ PVR_ERROR Freebox::UpdateTimer (const kodi::addon::PVRTimer& timer)
     case PVR_FREEBOX_GENERATOR_MANUAL :
     case PVR_FREEBOX_GENERATOR_EPG :
     {
-      P8PLATFORM::CLockObject lock (m_mutex);
+      lock_guard<recursive_mutex> lock (m_mutex);
       auto i = m_generators.find (timer.GetClientIndex ());
       if (i == m_generators.end ())
         return PVR_ERROR_SERVER_ERROR;
@@ -2129,7 +2124,7 @@ PVR_ERROR Freebox::DeleteTimer (const kodi::addon::PVRTimer & timer, bool force)
     case PVR_FREEBOX_TIMER_MANUAL :
     case PVR_FREEBOX_TIMER_EPG :
     {
-      P8PLATFORM::CLockObject lock (m_mutex);
+      lock_guard<recursive_mutex> lock (m_mutex);
       auto i = m_timers.find (timer.GetClientIndex ());
       if (i == m_timers.end ())
         return PVR_ERROR_SERVER_ERROR;
@@ -2156,7 +2151,7 @@ PVR_ERROR Freebox::DeleteTimer (const kodi::addon::PVRTimer & timer, bool force)
     case PVR_FREEBOX_GENERATOR_MANUAL :
     case PVR_FREEBOX_GENERATOR_EPG :
     {
-      P8PLATFORM::CLockObject lock (m_mutex);
+      lock_guard<recursive_mutex> lock (m_mutex);
       auto i = m_generators.find (timer.GetClientIndex ());
       if (i == m_generators.end ())
         return PVR_ERROR_SERVER_ERROR;
