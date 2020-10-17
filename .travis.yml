@@ -5,16 +5,16 @@ env:
     - app_id=pvr.freebox
 
 #
-# Define the build matrix
+# Define the builds to get up to date versions of cmake and gcc
 #
 matrix:
   include:
     - os: linux
-      dist: xenial
+      dist: bionic
       sudo: required
       compiler: gcc
     - os: linux
-      dist: xenial
+      dist: bionic
       sudo: required
       compiler: clang
     - os: linux
@@ -32,6 +32,7 @@ matrix:
 
 before_install:
   - if [[ $DEBIAN_BUILD == true ]]; then sudo add-apt-repository -y ppa:team-xbmc/xbmc-nightly; fi
+  - if [[ $DEBIAN_BUILD == true ]]; then sudo apt-get update; fi
   - if [[ $DEBIAN_BUILD == true ]]; then sudo apt-get install fakeroot; fi
 
 #
@@ -48,6 +49,6 @@ before_script:
   - if [[ $DEBIAN_BUILD == true ]]; then wget https://raw.githubusercontent.com/xbmc/xbmc/master/xbmc/addons/kodi-dev-kit/tools/debian-addon-package-test.sh && chmod +x ./debian-addon-package-test.sh; fi
   - if [[ $DEBIAN_BUILD == true ]]; then sudo apt-get build-dep $TRAVIS_BUILD_DIR; fi
 
-script:
+script: 
   - if [[ $DEBIAN_BUILD != true ]]; then make; fi
   - if [[ $DEBIAN_BUILD == true ]]; then ./debian-addon-package-test.sh $TRAVIS_BUILD_DIR; fi
