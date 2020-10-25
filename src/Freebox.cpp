@@ -734,6 +734,16 @@ inline string freebox_replace_server (string url, const string & server)
   return k != string::npos ? url.replace (k, SERVER.length (), server) : url;
 }
 
+void freebox_channel_logo_fix (const std::string & url, const std::string & path)
+{
+  string response;
+  long http = freebox_http ("GET", url, "", &response, "");
+  std::cout << url << " : " << http << " (" << response.length () << ')' << std::endl;
+  ofstream ofs (path, ios::binary | ios::out);
+  ofs.write (response.c_str (), response.length ());
+  ofs.close ();
+}
+
 bool Freebox::ProcessChannels ()
 {
   m_tv_channels.clear ();
@@ -866,7 +876,16 @@ bool Freebox::ProcessChannels ()
           data.emplace_back (ParseSource (t), ParseQuality (q), freebox_replace_server (u, m_server));
         }
       }
+#if 1
+      if (! kodi::vfs::DirectoryExists (m_path + "logos"))
+        kodi::vfs::CreateDirectory (m_path + "logos");
+
+      std::string path = m_path + "logos/" + ch.uuid;
+      freebox_channel_logo_fix (logo, path);
+      m_tv_channels.emplace (ChannelId (ch.uuid), Channel (ch.uuid, name, path, ch.major, ch.minor, data));
+#else
       m_tv_channels.emplace (ChannelId (ch.uuid), Channel (ch.uuid, name, logo, ch.major, ch.minor, data));
+#endif
     }
   }
 
