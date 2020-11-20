@@ -876,7 +876,7 @@ bool Freebox::ProcessChannels ()
           data.emplace_back (ParseSource (t), ParseQuality (q), freebox_replace_server (u, m_server));
         }
       }
-#if 1
+#if 0
       if (! kodi::vfs::DirectoryExists (m_path + "logos"))
         kodi::vfs::CreateDirectory (m_path + "logos");
 
@@ -884,7 +884,7 @@ bool Freebox::ProcessChannels ()
       freebox_channel_logo_fix (logo, path);
       m_tv_channels.emplace (ChannelId (ch.uuid), Channel (ch.uuid, name, path, ch.major, ch.minor, data));
 #else
-      m_tv_channels.emplace (ChannelId (ch.uuid), Channel (ch.uuid, name, logo, ch.major, ch.minor, data));
+      m_tv_channels.emplace (ChannelId (ch.uuid), Channel (ch.uuid, name, logo + "|customrequest=GET", ch.major, ch.minor, data));
 #endif
     }
   }
@@ -1014,7 +1014,7 @@ void Freebox::ProcessEvent (const Event & e, EPG_EVENT_STATE state)
 
   m_mutex.lock ();
   bool colors = m_epg_colors;
-  string picture = ! e.picture.empty () ? URL (e.picture) : "";
+  string picture = ! e.picture.empty () ? URL (e.picture + "|customrequest=GET") : "";
   m_mutex.unlock ();
 
   string actors   = e.GetCastActors   ();
