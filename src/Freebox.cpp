@@ -442,10 +442,12 @@ inline string StrNumbers (const vector<Conflict> & v)
 
 Freebox::Stream::Stream (enum Source  source,
                          enum Quality quality,
-                         const string & url) :
+                         const string & rtsp,
+                         const string & hls) :
   source (source),
   quality (quality),
-  url (url)
+  rtsp (rtsp),
+  hls (hls)
 {
 }
 
@@ -581,19 +583,21 @@ void freebox_debug_stream_properties (const string & url, int index, int score)
   kodi::Log (ADDON_LOG_DEBUG, "GetStreamProperties: '%s' (index = %d, score = %d)", url.c_str (), index, score);
 }
 
-PVR_ERROR Freebox::Channel::GetStreamProperties (enum Source source, enum Quality quality,
+PVR_ERROR Freebox::Channel::GetStreamProperties (enum Source source,
+                                                 enum Quality quality,
+                                                 enum Protocol protocol,
                                                  std::vector<kodi::addon::PVRStreamProperty> & properties) const
 {
   if (! streams.empty ())
   {
     int index = 0;
     int score = streams[0].score (source, quality);
-    freebox_debug_stream_properties (streams[0].url, index, score);
+    freebox_debug_stream_properties (streams[0].rtsp, index, score);
 
     for (size_t i = 1; i < streams.size (); ++i)
     {
       int s = streams[i].score (source, quality);
-      freebox_debug_stream_properties (streams[i].url, i, s);
+      freebox_debug_stream_properties (streams[i].rtsp, i, s);
       if (s > score)
       {
         index = i;
@@ -601,7 +605,12 @@ PVR_ERROR Freebox::Channel::GetStreamProperties (enum Source source, enum Qualit
       }
     }
 
-    properties.emplace_back (PVR_STREAM_PROPERTY_STREAMURL, streams[index].url);
+    switch (protocol)
+    {
+      case Protocol::RTSP : properties.emplace_back (PVR_STREAM_PROPERTY_STREAMURL, streams[index].rtsp); break;
+      case Protocol::HLS  : properties.emplace_back (PVR_STREAM_PROPERTY_STREAMURL, streams[index].hls);  break;
+    }
+
     properties.emplace_back (PVR_STREAM_PROPERTY_ISREALTIMESTREAM, "true");
   }
 
@@ -852,8 +861,6 @@ bool Freebox::ProcessChannels ()
     const Conflicts & q = it.second;
 #endif
 
-    string protocol = StrProtocol (m_tv_protocol);
-
     if (! q.empty ())
     {
       const Conflict & ch = q.front ();
@@ -870,10 +877,10 @@ bool Freebox::ProcessChannels ()
         for (SizeType i = 0; i < streams.Size (); ++i)
         {
           const Value  & s = streams [i];
-          const string & t = s["type"].GetString ();
-          const string & q = s["quality"].GetString ();
-          const string & u = s[protocol].GetString ();
-          data.emplace_back (ParseSource (t), ParseQuality (q), freebox_replace_server (u, m_server));
+          data.emplace_back (ParseSource (s["type"].GetString ()),
+                             ParseQuality (s["quality"].GetString ()),
+                             freebox_replace_server (s["rtsp"].GetString (), m_server),
+                             freebox_replace_server (s["hls"].GetString (), m_server));
         }
       }
 #if 0
@@ -1383,7 +1390,7 @@ PVR_ERROR Freebox::GetChannelStreamProperties (const kodi::addon::PVRChannel & c
   lock_guard<recursive_mutex> lock (m_mutex);
   auto f = m_tv_channels.find (channel.GetUniqueId ());
   if (f != m_tv_channels.end ())
-    return f->second.GetStreamProperties (source, quality, properties);
+    return f->second.GetStreamProperties (source, quality, m_tv_protocol, properties);
 
   return PVR_ERROR_NO_ERROR;
 }

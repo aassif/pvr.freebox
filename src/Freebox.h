@@ -122,14 +122,18 @@ class ATTRIBUTE_HIDDEN Freebox :
       public:
         enum Source  source;
         enum Quality quality;
-        std::string  url;
+        std::string  rtsp;
+        std::string  hls;
 
       protected:
         int score (enum Source)  const;
         int score (enum Quality) const;
 
       public:
-        Stream (enum Source, enum Quality, const std::string &);
+        Stream (enum Source,
+                enum Quality,
+                const std::string & rtsp,
+                const std::string & hls);
         int score (enum Source, enum Quality) const;
     };
 
@@ -156,7 +160,7 @@ class ATTRIBUTE_HIDDEN Freebox :
 
         bool IsHidden () const;
         void GetChannel (kodi::addon::PVRChannelsResultSet & results, bool radio) const;
-        PVR_ERROR GetStreamProperties (enum Source, enum Quality,
+        PVR_ERROR GetStreamProperties (enum Source, enum Quality, enum Protocol,
                                        std::vector<kodi::addon::PVRStreamProperty> & properties) const;
     };
 
