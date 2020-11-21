@@ -866,7 +866,7 @@ bool Freebox::ProcessChannels ()
           data.emplace_back (ParseSource (t), ParseQuality (q), freebox_replace_server (u, m_server));
         }
       }
-      m_tv_channels.emplace (ChannelId (ch.uuid), Channel (ch.uuid, name, logo, ch.major, ch.minor, data));
+      m_tv_channels.emplace (ChannelId (ch.uuid), Channel (ch.uuid, name, logo + "|customrequest=GET", ch.major, ch.minor, data));
     }
   }
 
@@ -1015,7 +1015,7 @@ void Freebox::ProcessEvent (const Event & e, EPG_EVENT_STATE state)
 
   m_mutex.Lock ();
   bool colors = m_epg_colors;
-  string picture = ! e.picture.empty () ? URL (e.picture) : "";
+  string picture = ! e.picture.empty () ? URL (e.picture + "|customrequest=GET") : "";
   m_mutex.Unlock ();
 
   string actors   = e.GetCastActors   ();
