@@ -347,6 +347,7 @@ class ATTRIBUTE_HIDDEN Freebox :
     PVR_ERROR GetConnectionString (std::string &) override;
 
     // E P G ///////////////////////////////////////////////////////////////////
+    PVR_ERROR SetEPGMaxPastDays(int) override;
     PVR_ERROR SetEPGMaxFutureDays(int) override;
     PVR_ERROR GetEPGForChannel(int, time_t, time_t, kodi::addon::PVREPGTagsResultSet &) override;
 
@@ -392,8 +393,10 @@ class ATTRIBUTE_HIDDEN Freebox :
     void SetQuality (Quality);
     // Streaming protocol.
     void SetProtocol (Protocol);
-    // MaxDays setting.
-    void SetDays (int);
+    // Maximum past days.
+    void SetPastDays (int);
+    // Maximum future days.
+    void SetFutureDays (int);
     // Extended EPG.
     void SetExtended (bool);
     // Colored Categories.
@@ -487,7 +490,8 @@ class ATTRIBUTE_HIDDEN Freebox :
     // EPG /////////////////////////////////////////////////////////////////////
     std::queue<Query> m_epg_queries;
     std::set<std::string> m_epg_cache;
-    int m_epg_days;
+    int m_epg_days_past;
+    int m_epg_days_future;
     time_t m_epg_last;
     bool m_epg_extended = PVR_FREEBOX_DEFAULT_EXTENDED;
     bool m_epg_colors   = PVR_FREEBOX_DEFAULT_COLORS;

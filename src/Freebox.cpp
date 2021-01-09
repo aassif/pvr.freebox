@@ -928,7 +928,8 @@ Freebox::Freebox () :
   m_tv_prefs_quality (),
   m_epg_queries (),
   m_epg_cache (),
-  m_epg_days (0),
+  m_epg_days_past (0),
+  m_epg_days_future (0),
   m_epg_last (0),
   m_recordings (),
   m_unique_id (1),
@@ -979,10 +980,16 @@ void Freebox::SetProtocol (Protocol p)
   m_tv_protocol = p;
 }
 
-void Freebox::SetDays (int d)
+void Freebox::SetPastDays (int d)
 {
   lock_guard<recursive_mutex> lock (m_mutex);
-  m_epg_days = d != EPG_TIMEFRAME_UNLIMITED ? min (d, 7) : 7;
+  m_epg_days_past = d != EPG_TIMEFRAME_UNLIMITED ? min (d, 7) : 7;
+}
+
+void Freebox::SetFutureDays (int d)
+{
+  lock_guard<recursive_mutex> lock (m_mutex);
+  m_epg_days_future = d != EPG_TIMEFRAME_UNLIMITED ? min (d, 7) : 7;
 }
 
 void Freebox::SetExtended (bool e)
@@ -1142,10 +1149,10 @@ void Freebox::Process ()
   {
     m_mutex.lock ();
     int    delay = m_delay;
-    int    days  = m_epg_days;
     time_t now   = time (NULL);
-    time_t end   = now + days * 24 * 60 * 60;
-    time_t last  = max (now, m_epg_last);
+    time_t begin = now - m_epg_days_past   * 24 * 3600;
+    time_t end   = now + m_epg_days_future * 24 * 3600;
+    time_t last  = max (begin, m_epg_last);
     m_mutex.unlock ();
 
     if (StartSession ())
@@ -1229,7 +1236,8 @@ ADDON_STATUS Freebox::Create ()
     AddMenuHook (h);
 
   kodi::QueueNotification (QUEUE_INFO, "", PVR_FREEBOX_VERSION);
-  SetDays (EpgMaxFutureDays ());
+  SetPastDays (EpgMaxPastDays ());
+  SetFutureDays (EpgMaxFutureDays ());
   ProcessChannels ();
   CreateThread ();
 
@@ -1332,9 +1340,15 @@ PVR_ERROR Freebox::GetConnectionString (string & connection)
 // E P G ///////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 
-PVR_ERROR Freebox::SetEPGMaxFutureDays (int futureDays)
+PVR_ERROR Freebox::SetEPGMaxPastDays (int days)
 {
-  SetDays (futureDays);
+  SetPastDays (days);
+  return PVR_ERROR_NO_ERROR;
+}
+
+PVR_ERROR Freebox::SetEPGMaxFutureDays (int days)
+{
+  SetFutureDays (days);
   return PVR_ERROR_NO_ERROR;
 }
 
