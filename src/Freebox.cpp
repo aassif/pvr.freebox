@@ -1229,7 +1229,7 @@ ADDON_STATUS Freebox::Create ()
     AddMenuHook (h);
 
   kodi::QueueNotification (QUEUE_INFO, "", PVR_FREEBOX_VERSION);
-  SetDays (EpgMaxDays ());
+  SetDays (EpgMaxFutureDays ());
   ProcessChannels ();
   CreateThread ();
 
@@ -1332,9 +1332,9 @@ PVR_ERROR Freebox::GetConnectionString (string & connection)
 // E P G ///////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 
-PVR_ERROR Freebox::SetEPGTimeFrame (int days)
+PVR_ERROR Freebox::SetEPGMaxFutureDays (int futureDays)
 {
-  SetDays (days);
+  SetDays (futureDays);
   return PVR_ERROR_NO_ERROR;
 }
 

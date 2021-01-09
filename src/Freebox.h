@@ -347,7 +347,7 @@ class ATTRIBUTE_HIDDEN Freebox :
     PVR_ERROR GetConnectionString (std::string &) override;
 
     // E P G ///////////////////////////////////////////////////////////////////
-    PVR_ERROR SetEPGTimeFrame(int) override;
+    PVR_ERROR SetEPGMaxFutureDays(int) override;
     PVR_ERROR GetEPGForChannel(int, time_t, time_t, kodi::addon::PVREPGTagsResultSet &) override;
 
     // C H A N N E L S /////////////////////////////////////////////////////////
