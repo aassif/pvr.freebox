@@ -24,9 +24,9 @@
 #include <map>
 #include <queue>
 #include <algorithm> // find_if
+#include <nlohmann/json.hpp>
 #include "kodi/addon-instance/PVR.h"
 #include "kodi/tools/Thread.h"
-#include "rapidjson/document.h"
 
 #define PVR_FREEBOX_VERSION STR(FREEBOX_VERSION)
 
@@ -61,8 +61,6 @@
 #define PVR_FREEBOX_DEFAULT_PROTOCOL Protocol::RTSP
 #define PVR_FREEBOX_DEFAULT_EXTENDED false
 #define PVR_FREEBOX_DEFAULT_COLORS   false
-
-#undef DELETE
 
 template <class K>
 class Index
@@ -207,7 +205,7 @@ class ATTRIBUTE_HIDDEN Freebox :
             std::string role;
 
           public:
-            CastMember (const rapidjson::Value &);
+            CastMember (const nlohmann::json &);
         };
 
         typedef std::vector<CastMember> Cast;
@@ -240,7 +238,7 @@ class ATTRIBUTE_HIDDEN Freebox :
         Cast         cast;
 
       public:
-        Event (const rapidjson::Value &, unsigned int channel, time_t date);
+        Event (const nlohmann::json &, unsigned int channel, time_t date);
         std::string GetCastDirector () const;
         std::string GetCastActors   () const;
     };
@@ -275,7 +273,7 @@ class ATTRIBUTE_HIDDEN Freebox :
         bool         repeat_sunday;
 
       public:
-        Generator (const rapidjson::Value &);
+        Generator (const nlohmann::json &);
     };
 
     // Timer.
@@ -304,7 +302,7 @@ class ATTRIBUTE_HIDDEN Freebox :
         std::string  error;
 
       public:
-        Timer (const rapidjson::Value &);
+        Timer (const nlohmann::json &);
     };
 
     // Recording.
@@ -328,7 +326,7 @@ class ATTRIBUTE_HIDDEN Freebox :
         bool         secure;
 
       public:
-        Recording (const rapidjson::Value &);
+        Recording (const nlohmann::json &);
     };
 
   public:
@@ -407,17 +405,21 @@ class ATTRIBUTE_HIDDEN Freebox :
     // H T T P /////////////////////////////////////////////////////////////////
     bool Http       (const std::string & custom,
                      const std::string & url,
-                     const rapidjson::Document &,
-                     rapidjson::Document *, rapidjson::Type = rapidjson::kObjectType) const;
+                     const nlohmann::json &,
+                     nlohmann::json *,
+                     nlohmann::json::value_t = nlohmann::json::value_t::object) const;
     bool HttpGet    (const std::string & url,
-                     rapidjson::Document *, rapidjson::Type = rapidjson::kObjectType) const;
+                     nlohmann::json *,
+                     nlohmann::json::value_t = nlohmann::json::value_t::object) const;
     bool HttpPost   (const std::string & url,
-                     const rapidjson::Document &,
-                     rapidjson::Document *, rapidjson::Type = rapidjson::kObjectType) const;
+                     const nlohmann::json &,
+                     nlohmann::json *,
+                     nlohmann::json::value_t = nlohmann::json::value_t::object) const;
     bool HttpPut    (const std::string & url,
-                     const rapidjson::Document &,
-                     rapidjson::Document *, rapidjson::Type = rapidjson::kObjectType) const;
-    bool HttpDelete (const std::string & url, rapidjson::Document *) const;
+                     const nlohmann::json &,
+                     nlohmann::json *,
+                     nlohmann::json::value_t = nlohmann::json::value_t::object) const;
+    bool HttpDelete (const std::string & url) const;
 
     // Session.
     bool StartSession ();
@@ -427,9 +429,9 @@ class ATTRIBUTE_HIDDEN Freebox :
     bool ProcessChannels ();
 
     // Process JSON EPG.
-    void ProcessFull    (const rapidjson::Value & epg);
-    void ProcessChannel (const rapidjson::Value & epg, unsigned int channel);
-    void ProcessEvent   (const rapidjson::Value & epg, unsigned int channel, time_t, EPG_EVENT_STATE);
+    void ProcessFull    (const nlohmann::json & epg);
+    void ProcessChannel (const nlohmann::json & epg, unsigned int channel);
+    void ProcessEvent   (const nlohmann::json & epg, unsigned int channel, time_t, EPG_EVENT_STATE);
 
     // If /api/v6/tv/epg/programs/* queries had a "date", things would be *way* easier!
     void ProcessEvent   (const Event &, EPG_EVENT_STATE);
@@ -457,12 +459,6 @@ class ATTRIBUTE_HIDDEN Freebox :
     static enum Quality DialogQuality (enum Quality selected = Quality::DEFAULT);
 
     static std::string Password (const std::string & token, const std::string & challenge);
-
-    template <typename T>
-    inline static T JSON (const rapidjson::Value &);
-
-    template <typename T>
-    inline static T JSON (const rapidjson::Value &, const char * name, const T & value = T ());
 
   protected:
     // Full URL (protocol + server + query).
@@ -502,15 +498,4 @@ class ATTRIBUTE_HIDDEN Freebox :
     std::map<int, Generator> m_generators;
     std::map<int, Timer> m_timers;
 };
-
-template <> inline bool        Freebox::JSON<bool>        (const rapidjson::Value & json) {return json.GetBool   ();}
-template <> inline int         Freebox::JSON<int>         (const rapidjson::Value & json) {return json.GetInt    ();}
-template <> inline std::string Freebox::JSON<std::string> (const rapidjson::Value & json) {return json.GetString ();}
-
-template <typename T>
-T Freebox::JSON (const rapidjson::Value & json, const char * name, const T & value)
-{
-  auto f = json.FindMember (name);
-  return f != json.MemberEnd () ? JSON<T> (f->value) : value;
-}
 

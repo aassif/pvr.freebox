@@ -44,32 +44,19 @@
 #include "openssl/hmac.h"
 #include "openssl/bio.h"
 #include "openssl/buffer.h"
-#include "rapidjson/writer.h"
-#include "rapidjson/stringbuffer.h"
-#include "rapidjson/istreamwrapper.h"
-#include "rapidjson/ostreamwrapper.h"
 
 #ifdef CreateDirectory
 #undef CreateDirectory
 #endif // CreateDirectory
 
 using namespace std;
-using namespace rapidjson;
+using json = nlohmann::json;
 
 #define PVR_FREEBOX_TIMER_MANUAL     1
 #define PVR_FREEBOX_TIMER_EPG        2
 #define PVR_FREEBOX_TIMER_GENERATED  3
 #define PVR_FREEBOX_GENERATOR_MANUAL 4
 #define PVR_FREEBOX_GENERATOR_EPG    5
-
-inline
-void freebox_debug (const Value & data)
-{
-  OStreamWrapper wrapper (cout);
-  Writer<OStreamWrapper> writer (wrapper);
-  data.Accept (writer);
-  cout << endl;
-}
 
 inline
 string freebox_base64 (const char * buffer, unsigned int length)
@@ -192,39 +179,33 @@ string Freebox::StrProtocol (enum Protocol p)
 /* static */
 bool Freebox::Http (const string & custom,
                     const string & path,
-                    const Document & request,
-                    Document * doc, Type type) const
+                    const json & request,
+                    json * result,
+                    json::value_t type) const
 {
   m_mutex.lock ();
   string url = URL (path);
   string session = m_session_token;
   m_mutex.unlock ();
 
-  StringBuffer buffer;
-  if (! request.IsNull ())
-  {
-    Writer<StringBuffer> writer (buffer);
-    request.Accept (writer);
-  }
-
   string response;
-  long http = freebox_http (custom, url, buffer.GetString (), &response, session);
+  long http = freebox_http (custom, url, request.dump (), &response, session);
   kodi::Log (ADDON_LOG_DEBUG, "%s %s %s", custom.c_str (), url.c_str (), response.c_str ());
 
-  doc->Parse (response);
+  json j = json::parse (response, nullptr, false);
 
-  if (doc->HasParseError ()) return false;
+  if (! j.is_object ()) return false;
 
-  if (! doc->IsObject ()) return false;
+  if (! j.value ("success", false)) return false;
 
-  auto s = doc->FindMember ("success");
-  if (s == doc->MemberEnd ()) return false;
-
-  bool success = s->value.GetBool ();
-  if (success && type != kNullType)
+  if (result != nullptr)
   {
-    auto r = doc->FindMember ("result");
-    if (r == doc->MemberEnd () || r->value.GetType () != type) return false;
+    auto r = j.find ("result");
+    if (r == j.end ()) return false;
+
+    if (r->type () != type) return false;
+
+    *result = *r;
   }
 
   if (http != 200)
@@ -234,37 +215,39 @@ bool Freebox::Http (const string & custom,
     return false;
   }
 
-  return success;
+  return true;
 }
 
 /* static */
 bool Freebox::HttpGet (const string & path,
-                   Document * doc, Type type) const
+                       json * result,
+                       json::value_t type) const
 {
-  return Http ("GET", path, Document (), doc, type);
+  return Http ("GET", path, json (), result, type);
 }
 
 /* static */
 bool Freebox::HttpPost (const string & path,
-                    const Document & request,
-                    Document * doc, Type type) const
+                        const json & request,
+                        json * result,
+                        json::value_t type) const
 {
-  return Http ("POST", path, request, doc, type);
+  return Http ("POST", path, request, result, type);
 }
 
 /* static */
 bool Freebox::HttpPut (const string & path,
-                   const Document & request,
-                   Document * doc, Type type) const
+                       const json & request,
+                       json * result,
+                       json::value_t type) const
 {
-  return Http ("PUT", path, request, doc, type);
+  return Http ("PUT", path, request, result, type);
 }
 
 /* static */
-bool Freebox::HttpDelete (const string & path,
-                      Document * doc) const
+bool Freebox::HttpDelete (const string & path) const
 {
-  return Http ("DELETE", path, Document (), doc, kNullType);
+  return Http ("DELETE", path, json (), nullptr, json::value_t::null);
 }
 
 /* static */
@@ -298,16 +281,18 @@ bool Freebox::StartSession ()
       const string hostname = kodi::network::GetHostname ();
       cout << "StartSession: hostname: " << hostname << endl;
 
-      Document request (kObjectType);
-      request.AddMember ("app_id",      PVR_FREEBOX_APP_ID,      request.GetAllocator ());
-      request.AddMember ("app_name",    PVR_FREEBOX_APP_NAME,    request.GetAllocator ());
-      request.AddMember ("app_version", PVR_FREEBOX_APP_VERSION, request.GetAllocator ());
-      request.AddMember ("device_name", hostname,                request.GetAllocator ());
+      json request =
+      {
+        {"app_id",      PVR_FREEBOX_APP_ID},
+        {"app_name",    PVR_FREEBOX_APP_NAME},
+        {"app_version", PVR_FREEBOX_APP_VERSION},
+        {"device_name", hostname}
+      };
 
-      Document response;
-      if (! HttpPost ("/api/v6/login/authorize", request, &response)) return false;
-      m_app_token = JSON<string> (response["result"], "app_token");
-      m_track_id  = JSON<int>    (response["result"], "track_id");
+      json result;
+      if (! HttpPost ("/api/v6/login/authorize", request, &result)) return false;
+      m_app_token = result.value ("app_token", "");
+      m_track_id  = result.value ("track_id", 0);
 
       ofstream ofs (file);
       ofs << m_app_token << ' ' << m_track_id;
@@ -322,19 +307,19 @@ bool Freebox::StartSession ()
     //cout << "track_id: " << m_track_id << endl;
   }
 
-  Document login;
+  json login;
   if (! HttpGet ("/api/v6/login/", &login))
     return false;
 
-  if (! login["result"]["logged_in"].GetBool ())
+  if (! login.value ("logged_in", false))
   {
-    Document d;
+    json d;
     string track = to_string (m_track_id);
     string url   = "/api/v6/login/authorize/" + track;
     if (! HttpGet (url, &d)) return false;
-    string status    = JSON<string> (d["result"], "status", "unknown");
-    string challenge = JSON<string> (d["result"], "challenge");
-    //string salt      = JSON<string> (d["result"], "password_salt");
+    string status    = d.value ("status", "");
+    string challenge = d.value ("challenge", "");
+    //string salt      = d.value ("password_salt", "");
     //cout << status << ' ' << challenge << ' ' << salt << endl;
 
     if (status == "granted")
@@ -342,13 +327,15 @@ bool Freebox::StartSession ()
       string password = Password (m_app_token, challenge);
       //cout << "password: " << password << " [" << password.length () << ']' << endl;
 
-      Document request (kObjectType);
-      request.AddMember ("app_id",   PVR_FREEBOX_APP_ID, request.GetAllocator ());
-      request.AddMember ("password", password,           request.GetAllocator ());
+      json request =
+      {
+        {"app_id",   PVR_FREEBOX_APP_ID},
+        {"password", password}
+      };
 
-      Document response;
-      if (! HttpPost ("/api/v6/login/session", request, &response)) return false;
-      m_session_token = JSON<string> (response["result"], "session_token");
+      json result;
+      if (! HttpPost ("/api/v6/login/session", request, &result)) return false;
+      m_session_token = result.value ("session_token", "");
 
       cout << "StartSession: session_token: " << m_session_token << endl;
       return true;
@@ -367,10 +354,7 @@ bool Freebox::StartSession ()
 bool Freebox::CloseSession ()
 {
   if (! m_session_token.empty ())
-  {
-    Document response;
-    return HttpPost ("/api/v6/login/logout/", Document (), &response, kNullType);
-  }
+    return HttpPost ("/api/v6/login/logout/", json (), nullptr);
 
   return true;
 }
@@ -673,44 +657,41 @@ int Freebox::Event::Colors (int c)
   };
 }
 
-Freebox::Event::CastMember::CastMember (const Value & c) :
-  job        (JSON<string> (c, "job")),
-  first_name (JSON<string> (c, "first_name")),
-  last_name  (JSON<string> (c, "last_name")),
-  role       (JSON<string> (c, "role"))
+Freebox::Event::CastMember::CastMember (const json & c) :
+  job        (c.value ("job", "")),
+  first_name (c.value ("first_name", "")),
+  last_name  (c.value ("last_name", "")),
+  role       (c.value ("role", ""))
 {
 }
 
-Freebox::Event::Event (const Value & e, unsigned int channel, time_t date) :
+Freebox::Event::Event (const json & e, unsigned int channel, time_t date) :
   channel  (channel),
-  uuid     (JSON<string> (e, "id")),
-  date     (JSON<int>    (e, "date", date)),
-  duration (JSON<int>    (e, "duration")),
-  title    (JSON<string> (e, "title")),
-  subtitle (JSON<string> (e, "sub_title")),
-  season   (JSON<int>    (e, "season_number")),
-  episode  (JSON<int>    (e, "episode_number")),
-  category (JSON<int>    (e, "category")),
-  picture  (JSON<string> (e, "picture_big", JSON<string> (e, "picture"))),
-  plot     (JSON<string> (e, "desc")),
-  outline  (JSON<string> (e, "short_desc")),
-  year     (JSON<int>    (e, "year")),
+  uuid     (e.value ("id", "")),
+  date     (e.value ("date", date)),
+  duration (e.value ("duration", 0)),
+  title    (e.value ("title", "")),
+  subtitle (e.value ("sub_title", "")),
+  season   (e.value ("season_number", 0)),
+  episode  (e.value ("episode_number", 0)),
+  category (e.value ("category", 0)),
+  picture  (e.value ("picture_big", e.value ("picture", ""))),
+  plot     (e.value ("desc", "")),
+  outline  (e.value ("short_desc", "")),
+  year     (e.value ("year", 0)),
   cast     ()
 {
   if (category != 0 && Colors (category) == 0)
   {
-    string name = JSON<string> (e, "category_name");
+    string name = e.value ("category_name", "");
     cout << category << " : " << name << endl;
   }
 
-  auto f = e.FindMember ("cast");
-  if (f != e.MemberEnd ())
-  {
-    const Value & c = f->value;
-    if (c.IsArray ())
-      for (SizeType i = 0; i < c.Size (); ++i)
-        cast.emplace_back (c[i]);
-  }
+  auto f = e.find ("cast");
+  if (f != e.end ())
+    if (f->is_array ())
+      for (auto & c : *f)
+        cast.emplace_back (c);
 }
 
 Freebox::Event::ConcatIfJob::ConcatIfJob (const string & job) :
@@ -757,17 +738,17 @@ bool Freebox::ProcessChannels ()
 {
   m_tv_channels.clear ();
 
-  Document channels;
+  json channels;
   if (! HttpGet ("/api/v6/tv/channels", &channels)) return false;
 
   string notification = kodi::GetLocalizedString (PVR_FREEBOX_STRING_CHANNELS_LOADED);
-  kodi::QueueFormattedNotification (QUEUE_INFO, notification.c_str (), channels["result"].MemberCount ());
+  kodi::QueueFormattedNotification (QUEUE_INFO, notification.c_str (), channels.size ());
 
-  //Document bouquets;
+  //json bouquets;
   //HttpGet ("/api/v6/tv/bouquets", &m_tv_bouquets);
 
-  Document bouquet;
-  if (! HttpGet ("/api/v6/tv/bouquets/freeboxtv/channels", &bouquet, kArrayType)) return false;
+  json bouquet;
+  if (! HttpGet ("/api/v6/tv/bouquets/freeboxtv/channels", &bouquet, json::value_t::array)) return false;
 
   // Conflict list.
   typedef vector<Conflict> Conflicts;
@@ -776,12 +757,11 @@ bool Freebox::ProcessChannels ()
   // Conflicts by major.
   map<int, Conflicts> conflicts_by_major;
 
-  const Value & r = bouquet ["result"];
-  for (SizeType i = 0; i < r.Size (); ++i)
+  for (int i = 0; i < bouquet.size (); ++i)
   {
-    string uuid  = r[i]["uuid"].GetString ();
-    int    major = r[i]["number"].GetInt ();
-    int    minor = r[i]["sub_number"].GetInt ();
+    string uuid  = bouquet[i]["uuid"];
+    int    major = bouquet[i]["number"];
+    int    minor = bouquet[i]["sub_number"];
 
     Conflict c (uuid, major, minor, i);
 
@@ -864,24 +844,21 @@ bool Freebox::ProcessChannels ()
     if (! q.empty ())
     {
       const Conflict & ch = q.front ();
-      const Value  & channel = channels["result"][ch.uuid];
-      const string & name    = channel["name"].GetString ();
-      const string & logo    = URL (channel["logo_url"].GetString ());
-      const Value  & item    = bouquet["result"][ch.position];
+      const json   & channel = channels[ch.uuid];
+      const string & name    = channel["name"];
+      const string & logo    = URL (channel["logo_url"]);
+      const json   & item    = bouquet[ch.position];
 
       vector<Stream> data;
-      if (item.HasMember("available") && item["available"].GetBool ()
-       && item.HasMember("streams")   && item["streams"].IsArray ())
+      if (item.value ("available", false))
       {
-        const Value & streams = item["streams"];
-        for (SizeType i = 0; i < streams.Size (); ++i)
-        {
-          const Value  & s = streams [i];
-          data.emplace_back (ParseSource (s["type"].GetString ()),
-                             ParseQuality (s["quality"].GetString ()),
-                             freebox_replace_server (s["rtsp"].GetString (), m_server),
-                             freebox_replace_server (s["hls"].GetString (), m_server));
-        }
+        auto f = item.find ("streams");
+        if (f != item.end () && f->is_array ())
+          for (auto & s : *f)
+            data.emplace_back (ParseSource (s["type"]),
+                               ParseQuality (s["quality"]),
+                               freebox_replace_server (s["rtsp"], m_server),
+                               freebox_replace_server (s["hls"], m_server));
       }
 #if 0
       if (! kodi::vfs::DirectoryExists (m_path + "logos"))
@@ -897,23 +874,29 @@ bool Freebox::ProcessChannels ()
   }
 
   {
-    Document d;
     ifstream ifs (m_path + "source.txt");
-    IStreamWrapper wrapper (ifs);
-    d.ParseStream (wrapper);
-    if (! d.HasParseError () && d.IsObject ())
-      for (auto i = d.MemberBegin (); i != d.MemberEnd (); ++i)
-        m_tv_prefs_source.emplace (ChannelId (i->name.GetString ()), ParseSource (i->value.GetString ()));
+    json d = json::parse (ifs, nullptr, false);
+    if (d.is_object ())
+#if __cplusplus >= 201703L
+      for (auto & [id, source] = d.items ())
+        m_tv_prefs_source.emplace (ChannelId (id), ParseSource (source));
+#else
+      for (auto & item : d.items ())
+        m_tv_prefs_source.emplace (ChannelId (item.key ()), ParseSource (item.value ()));
+#endif
   }
 
   {
-    Document d;
     ifstream ifs (m_path + "quality.txt");
-    IStreamWrapper wrapper (ifs);
-    d.ParseStream (wrapper);
-    if (! d.HasParseError () && d.IsObject ())
-      for (auto i = d.MemberBegin (); i != d.MemberEnd (); ++i)
-        m_tv_prefs_quality.emplace (ChannelId (i->name.GetString ()), ParseQuality (i->value.GetString ()));
+    json d = json::parse (ifs, nullptr, false);
+    if (d.is_object ())
+#if __cplusplus >= 201703L
+      for (auto & [id, quality] = d.items ())
+        m_tv_prefs_quality.emplace (ChannelId (id), ParseQuality (quality));
+#else
+      for (auto & item : d.items ())
+        m_tv_prefs_quality.emplace (ChannelId (item.key ()), ParseQuality (item.value ()));
+#endif
   }
 
   return true;
@@ -1083,7 +1066,7 @@ void Freebox::ProcessEvent (const Event & e, EPG_EVENT_STATE state)
   EpgEventStateChange (tag, state);
 }
 
-void Freebox::ProcessEvent (const Value & event, unsigned int channel, time_t date, EPG_EVENT_STATE state)
+void Freebox::ProcessEvent (const json & event, unsigned int channel, time_t date, EPG_EVENT_STATE state)
 {
   {
     lock_guard<recursive_mutex> lock (m_mutex);
@@ -1106,14 +1089,12 @@ void Freebox::ProcessEvent (const Value & event, unsigned int channel, time_t da
   ProcessEvent (e, state);
 }
 
-void Freebox::ProcessChannel (const Value & epg, unsigned int channel)
+void Freebox::ProcessChannel (const json & epg, unsigned int channel)
 {
-  for (auto i = epg.MemberBegin (); i != epg.MemberEnd (); ++i)
+  for (auto & event : epg)
   {
-    const Value & event = i->value;
-
-    string uuid = JSON<string> (event, "id");
-    time_t date = JSON<int>    (event, "date");
+    string uuid = event.value ("id", "");
+    time_t date = event.value ("date", 0);
 
     static const string PREFIX = "pluri_";
     if (uuid.find (PREFIX) != 0) continue;
@@ -1134,13 +1115,10 @@ void Freebox::ProcessChannel (const Value & epg, unsigned int channel)
   }
 }
 
-void Freebox::ProcessFull (const Value & epg)
+void Freebox::ProcessFull (const json & epg)
 {
-  for (auto i = epg.MemberBegin (); i != epg.MemberEnd (); ++i)
-  {
-    string uuid = i->name.GetString ();
-    ProcessChannel (i->value, ChannelId (uuid));
-  }
+  for (auto & item : epg.items ())
+    ProcessChannel (item.value (), ChannelId (item.key ()));
 }
 
 void Freebox::Process ()
@@ -1190,14 +1168,14 @@ void Freebox::Process ()
       //cout << q.query << " [" << delay << ']' << endl;
       kodi::Log (ADDON_LOG_INFO, "Processing: '%s'", q.query.c_str ());
 
-      Document json;
-      if (HttpGet (q.query, &json))
+      json result;
+      if (HttpGet (q.query, &result))
       {
         switch (q.type)
         {
-          case FULL    : ProcessFull    (json["result"]); break;
-          case CHANNEL : ProcessChannel (json["result"], q.channel); break;
-          case EVENT   : ProcessEvent   (json["result"], q.channel, q.date, EPG_EVENT_UPDATED); break;
+          case FULL    : ProcessFull    (result); break;
+          case CHANNEL : ProcessChannel (result, q.channel); break;
+          case EVENT   : ProcessEvent   (result, q.channel, q.date, EPG_EVENT_UPDATED); break;
           default      : break;
         }
       }
@@ -1427,15 +1405,12 @@ void Freebox::SetChannelSource (unsigned int id, enum Source source)
     default           : break;
   }
 
-  Document d (kObjectType);
-  auto & a = d.GetAllocator ();
+  json d;
   for (auto & i : m_tv_prefs_source)
-    d.AddMember (Value ("uuid-webtv-" + to_string (i.first), a), Value (StrSource (i.second), a), a);
+    d.emplace ("uuid-webtv-" + to_string (i.first), StrSource (i.second));
 
   ofstream ofs (m_path + "source.txt");
-  OStreamWrapper wrapper (ofs);
-  Writer<OStreamWrapper> writer (wrapper);
-  d.Accept (writer);
+  ofs << d;
 }
 
 enum Freebox::Quality Freebox::ChannelQuality (unsigned int id, bool fallback)
@@ -1458,37 +1433,34 @@ void Freebox::SetChannelQuality (unsigned int id, enum Quality quality)
     default              : break;
   }
 
-  Document d (kObjectType);
-  auto & a = d.GetAllocator ();
+  json d;
   for (auto & i : m_tv_prefs_quality)
-    d.AddMember (Value ("uuid-webtv-" + to_string (i.first), a), Value (StrQuality (i.second), a), a);
+    d.emplace ("uuid-webtv-" + to_string (i.first), StrQuality (i.second));
 
   ofstream ofs (m_path + "quality.txt");
-  OStreamWrapper wrapper (ofs);
-  Writer<OStreamWrapper> writer (wrapper);
-  d.Accept (writer);
+  ofs << d;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // R E C O R D I N G S /////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 
-Freebox::Recording::Recording (const Value & json) :
-  id              (JSON<int>    (json, "id")),
-  start           (JSON<int>    (json, "start")),
-  end             (JSON<int>    (json, "end")),
-  name            (JSON<string> (json, "name")),
-  subname         (JSON<string> (json, "subname")),
-  channel_uuid    (JSON<string> (json, "channel_uuid")),
-  channel_name    (JSON<string> (json, "channel_name")),
-//channel_quality (JSON<string> (json, "channel_quality")),
-//channel_type    (JSON<string> (json, "channel_type")),
-//broadcast_type  (JSON<string> (json, "broadcast_type")),
-  media           (JSON<string> (json, "media")),
-  path            (JSON<string> (json, "path")),
-  filename        (JSON<string> (json, "filename")),
-  byte_size       (JSON<int>    (json, "byte_size")),
-  secure          (JSON<bool>   (json, "secure"))
+Freebox::Recording::Recording (const json & r) :
+  id              (r.value ("id", -1)),
+  start           (r.value ("start", 0)),
+  end             (r.value ("end", 0)),
+  name            (r.value ("name", "")),
+  subname         (r.value ("subname", "")),
+  channel_uuid    (r.value ("channel_uuid", "")),
+  channel_name    (r.value ("channel_name", "")),
+//channel_quality (r.value ("channel_quality", "")),
+//channel_type    (r.value ("channel_type", "")),
+//broadcast_type  (r.value ("broadcast_type", "")),
+  media           (r.value ("media", "")),
+  path            (r.value ("path", "")),
+  filename        (r.value ("filename", "")),
+  byte_size       (r.value ("byte_size", 0)),
+  secure          (r.value ("secure", false))
 {
 }
 
@@ -1496,15 +1468,11 @@ void Freebox::ProcessRecordings ()
 {
   m_recordings.clear ();
 
-  Document recordings;
-  if (HttpGet ("/api/v6/pvr/finished/", &recordings, kArrayType))
+  json recordings;
+  if (HttpGet ("/api/v6/pvr/finished/", &recordings, json::value_t::array))
   {
-    Value & result = recordings ["result"];
-    for (SizeType i = 0; i < result.Size (); ++i)
-    {
-      int id = result[i]["id"].GetInt ();
-      m_recordings.emplace (id, Recording (result [i]));
-    }
+    for (auto & r : recordings)
+      m_recordings.emplace (r.value ("id", -1), Recording (r));
 
     TriggerRecordingUpdate ();
   }
@@ -1595,17 +1563,15 @@ PVR_ERROR Freebox::RenameRecording (const kodi::addon::PVRRecording & recording)
     return PVR_ERROR_SERVER_ERROR;
 
   // Payload.
-  Document d (kObjectType);
-  d.AddMember ("name",    name,    d.GetAllocator ());
-  d.AddMember ("subname", subname, d.GetAllocator ());
+  json d = {{"name", name}, {"subname", subname}};
 
   // Update recording (Freebox).
-  Document response;
-  if (! HttpPut ("/api/v6/pvr/finished/" + to_string (id), d, &response))
+  json result;
+  if (! HttpPut ("/api/v6/pvr/finished/" + to_string (id), d, &result))
     return PVR_ERROR_SERVER_ERROR;
 
   // Update recording (locally).
-  i->second = Recording (response["result"]);
+  i->second = Recording (result);
   TriggerRecordingUpdate ();
 
   return PVR_ERROR_NO_ERROR;
@@ -1623,8 +1589,7 @@ PVR_ERROR Freebox::DeleteRecording (const kodi::addon::PVRRecording & recording)
     return PVR_ERROR_SERVER_ERROR;
 
   // Delete recording (Freebox).
-  Document response;
-  if (! HttpDelete ("/api/v6/pvr/finished/" + to_string (id), &response))
+  if (! HttpDelete ("/api/v6/pvr/finished/" + to_string (id)))
     return PVR_ERROR_SERVER_ERROR;
 
   // Delete recording (locally).
@@ -1638,30 +1603,30 @@ PVR_ERROR Freebox::DeleteRecording (const kodi::addon::PVRRecording & recording)
 // T I M E R S /////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 
-Freebox::Generator::Generator (const Value & json) :
-  id               (JSON<int>    (json, "id")),
-//type             (JSON<string> (json, "type")),
-  media            (JSON<string> (json, "media")),
-  path             (JSON<string> (json, "path")),
-  name             (JSON<string> (json, "name")),
-//subname          (JSON<string> (json, "name")),
-  channel_uuid     (JSON<string> (json["params"], "channel_uuid")),
-//channel_type     (JSON<string> (json["params"], "channel_type")),
-//channel_quality  (JSON<string> (json["params"], "channel_quality")),
-//channel_strict   (JSON<bool>   (json["params"], "channel_strict"))
-//broadcast_type   (JSON<bool>   (json["params"], "broadcast_type"))
-  start_hour       (JSON<int>    (json["params"], "start_hour")),
-  start_min        (JSON<int>    (json["params"], "start_min")),
-  duration         (JSON<int>    (json["params"], "duration")),
-  margin_before    (JSON<int>    (json["params"], "margin_before")),
-  margin_after     (JSON<int>    (json["params"], "margin_after")),
-  repeat_monday    (JSON<bool>   (json["params"]["repeat_days"], "monday")),
-  repeat_tuesday   (JSON<bool>   (json["params"]["repeat_days"], "tuesday")),
-  repeat_wednesday (JSON<bool>   (json["params"]["repeat_days"], "wednesday")),
-  repeat_thursday  (JSON<bool>   (json["params"]["repeat_days"], "thursday")),
-  repeat_friday    (JSON<bool>   (json["params"]["repeat_days"], "friday")),
-  repeat_saturday  (JSON<bool>   (json["params"]["repeat_days"], "saturday")),
-  repeat_sunday    (JSON<bool>   (json["params"]["repeat_days"], "sunday"))
+Freebox::Generator::Generator (const json & g) :
+  id               (g.value ("id", -1)),
+//type             (g.value ("type", "")),
+  media            (g.value ("media", "")),
+  path             (g.value ("path", "")),
+  name             (g.value ("name", "")),
+//subname          (g.value ("name", "")),
+  channel_uuid     (g.value ("/params/channel_uuid"_json_pointer, "")),
+//channel_type     (g.value ("/params/channel_type"_json_pointer, "")),
+//channel_quality  (g.value ("/params/channel_quality"_json_pointer, "")),
+//channel_strict   (g.value ("/params/channel_strict"_json_pointer, ""))
+//broadcast_type   (g.value ("/params/broadcast_type"_json_pointer, ""))
+  start_hour       (g.value ("/params/start_hour"_json_pointer, 0)),
+  start_min        (g.value ("/params/start_min"_json_pointer, 0)),
+  duration         (g.value ("/params/duration"_json_pointer, 0)),
+  margin_before    (g.value ("/params/margin_before"_json_pointer, 0)),
+  margin_after     (g.value ("/params/margin_after"_json_pointer, 0)),
+  repeat_monday    (g.value ("/params/repeat_days/monday"_json_pointer, false)),
+  repeat_tuesday   (g.value ("/params/repeat_days/tuesday"_json_pointer, false)),
+  repeat_wednesday (g.value ("/params/repeat_days/wednesday"_json_pointer, false)),
+  repeat_thursday  (g.value ("/params/repeat_days/thursday"_json_pointer, false)),
+  repeat_friday    (g.value ("/params/repeat_days/friday"_json_pointer, false)),
+  repeat_saturday  (g.value ("/params/repeat_days/saturday"_json_pointer, false)),
+  repeat_sunday    (g.value ("/params/repeat_days/sunday"_json_pointer,  false))
 {
 }
 
@@ -1669,41 +1634,40 @@ void Freebox::ProcessGenerators ()
 {
   m_generators.clear ();
 
-  Document generators;
-  if (HttpGet ("/api/v6/pvr/generator/", &generators, kArrayType))
+  json generators;
+  if (HttpGet ("/api/v6/pvr/generator/", &generators, json::value_t::array))
   {
-    Value & result = generators ["result"];
-    for (SizeType i = 0; i < result.Size (); ++i)
+    for (auto & g : generators)
     {
-      int        id = result[i]["id"].GetInt ();
+      int        id = g.value ("id", -1);
       int unique_id = m_unique_id ("generator/" + to_string (id));
-      m_generators.emplace (unique_id, Generator (result [i]));
+      m_generators.emplace (unique_id, Generator (g));
     }
 
     TriggerTimerUpdate ();
   }
 }
 
-Freebox::Timer::Timer (const Value & json) :
-  id             (JSON<int>    (json, "id")),
-  start          (JSON<int>    (json, "start")),
-  end            (JSON<int>    (json, "end")),
-  margin_before  (JSON<int>    (json, "margin_before")),
-  margin_after   (JSON<int>    (json, "margin_after")),
-  name           (JSON<string> (json, "name")),
-  subname        (JSON<string> (json, "subname")),
-  channel_uuid   (JSON<string> (json, "channel_uuid")),
-  channel_name   (JSON<string> (json, "channel_name")),
-//channel_type   (JSON<string> (json, "channel_type")),
-//broadcast_type (JSON<string> (json, "broadcast_type")),
-  media          (JSON<string> (json, "media")),
-  path           (JSON<string> (json, "path")),
-  has_record_gen (JSON<bool>   (json, "has_record_gen")),
-  record_gen_id  (JSON<int>    (json, "record_gen_id")),
-  enabled        (JSON<bool>   (json, "enabled")),
-  conflict       (JSON<bool>   (json, "conflict")),
-  state          (JSON<string> (json, "state")),
-  error          (JSON<string> (json, "error"))
+Freebox::Timer::Timer (const json & t) :
+  id             (t.value ("id", -1)),
+  start          (t.value ("start", 0)),
+  end            (t.value ("end", 0)),
+  margin_before  (t.value ("margin_before", 0)),
+  margin_after   (t.value ("margin_after", 0)),
+  name           (t.value ("name", "")),
+  subname        (t.value ("subname", "")),
+  channel_uuid   (t.value ("channel_uuid", "")),
+  channel_name   (t.value ("channel_name", "")),
+//channel_type   (t.value ("channel_type", "")),
+//broadcast_type (t.value ("broadcast_type", "")),
+  media          (t.value ("media", "")),
+  path           (t.value ("path", "")),
+  has_record_gen (t.value ("has_record_gen", false)),
+  record_gen_id  (t.value ("record_gen_id", 0)),
+  enabled        (t.value ("enabled", false)),
+  conflict       (t.value ("conflict", false)),
+  state          (t.value ("state", "disabled")),
+  error          (t.value ("error", "none"))
 {
 }
 
@@ -1711,18 +1675,17 @@ void Freebox::ProcessTimers ()
 {
   m_timers.clear ();
 
-  Document timers;
-  if (HttpGet ("/api/v6/pvr/programmed/", &timers, kArrayType))
+  json timers;
+  if (HttpGet ("/api/v6/pvr/programmed/", &timers, json::value_t::array))
   {
-    Value & result = timers ["result"];
-    for (SizeType i = 0; i < result.Size (); ++i)
+    for (auto & t : timers)
     {
-      int        id = result[i]["id"].GetInt ();
+      int        id = t.value ("id", -1);
       int unique_id = m_unique_id ("programmed/" + to_string (id));
 
-      const string & state = result[i]["state"].GetString ();
+      const string & state = t.value ("state", "disabled");
       if (state != "finished" && state != "failed" && state != "start_error" && state != "running_error")
-        m_timers.emplace (unique_id, Timer (result [i]));
+        m_timers.emplace (unique_id, Timer (t));
     }
 
     TriggerTimerUpdate ();
@@ -1896,20 +1859,20 @@ PVR_ERROR Freebox::GetTimers (kodi::addon::PVRTimersResultSet & results)
   return PVR_ERROR_NO_ERROR;
 }
 
-inline Value freebox_generator_weekdays (int w, Document::AllocatorType & a)
+inline json freebox_generator_weekdays (int w)
 {
-  Value r (kObjectType);
-  r.AddMember ("monday",    (w & PVR_WEEKDAY_MONDAY)    != 0, a);
-  r.AddMember ("tuesday",   (w & PVR_WEEKDAY_TUESDAY)   != 0, a);
-  r.AddMember ("wednesday", (w & PVR_WEEKDAY_WEDNESDAY) != 0, a);
-  r.AddMember ("thursday",  (w & PVR_WEEKDAY_THURSDAY)  != 0, a);
-  r.AddMember ("friday",    (w & PVR_WEEKDAY_FRIDAY)    != 0, a);
-  r.AddMember ("saturday",  (w & PVR_WEEKDAY_SATURDAY)  != 0, a);
-  r.AddMember ("sunday",    (w & PVR_WEEKDAY_SUNDAY)    != 0, a);
-  return r;
+  return json::object ({
+    {"monday",    (w & PVR_WEEKDAY_MONDAY)    != 0},
+    {"tuesday",   (w & PVR_WEEKDAY_TUESDAY)   != 0},
+    {"wednesday", (w & PVR_WEEKDAY_WEDNESDAY) != 0},
+    {"thursday",  (w & PVR_WEEKDAY_THURSDAY)  != 0},
+    {"friday",    (w & PVR_WEEKDAY_FRIDAY)    != 0},
+    {"saturday",  (w & PVR_WEEKDAY_SATURDAY)  != 0},
+    {"sunday",    (w & PVR_WEEKDAY_SUNDAY)    != 0}
+  });
 }
 
-inline Document freebox_generator_request (const kodi::addon::PVRTimer & timer)
+inline json freebox_generator_request (const kodi::addon::PVRTimer & timer)
 {
   string channel_uuid = "uuid-webtv-" + to_string (timer.GetClientChannelUid ());
   string title        = timer.GetTitle ();
@@ -1917,21 +1880,19 @@ inline Document freebox_generator_request (const kodi::addon::PVRTimer & timer)
   tm     date         = *localtime (&start);
   int    duration     = timer.GetEndTime () - start;
 
-  Document d (kObjectType);
-  Document::AllocatorType & a = d.GetAllocator ();
-  d.AddMember ("type", "manual_repeat", a);
-  d.AddMember ("name", title,           a);
-  Value p (kObjectType);
-  p.AddMember ("start_hour",    date.tm_hour, a);
-  p.AddMember ("start_min",     date.tm_min,  a);
-  p.AddMember ("start_sec",     0,            a);
-  p.AddMember ("duration",      duration,     a);
-  p.AddMember ("margin_before", timer.GetMarginStart () * 60, a);
-  p.AddMember ("margin_after",  timer.GetMarginEnd ()   * 60, a);
-  p.AddMember ("channel_uuid",  channel_uuid, a);
-  p.AddMember ("repeat_days",   freebox_generator_weekdays (timer.GetWeekdays (), a), a);
-  d.AddMember ("params",        p, a);
-  return d;
+  return json::object ({
+    {"type", "manual_repeat"},
+    {"name", title},
+    {"params", {
+      {"start_hour",    date.tm_hour},
+      {"start_min",     date.tm_min},
+      {"start_sec",     0},
+      {"duration",      duration},
+      {"margin_before", 60 * timer.GetMarginStart ()},
+      {"margin_after",  60 * timer.GetMarginEnd ()},
+      {"channel_uuid",  channel_uuid},
+      {"repeat_days",   freebox_generator_weekdays (timer.GetWeekdays ())}
+  }}});
 }
 
 PVR_ERROR Freebox::AddTimer (const kodi::addon::PVRTimer & timer)
@@ -1954,11 +1915,11 @@ PVR_ERROR Freebox::AddTimer (const kodi::addon::PVRTimer & timer)
       string subtitle;
       if (timer.GetEPGUid () != EPG_TAG_INVALID_UID)
       {
-        Document epg;
+        json epg;
         string epg_id = "pluri_" + to_string (timer.GetEPGUid ());
         if (HttpGet ("/api/v6/tv/epg/programs/" + epg_id, &epg))
         {
-          Event e (epg ["result"], channel, timer.GetStartTime ());
+          Event e (epg, channel, timer.GetStartTime ());
           ostringstream oss;
           if (e.season  != 0) oss << 'S' << setfill ('0') << setw (2) << e.season;
           if (e.episode != 0) oss << 'E' << setfill ('0') << setw (2) << e.episode;
@@ -1967,34 +1928,34 @@ PVR_ERROR Freebox::AddTimer (const kodi::addon::PVRTimer & timer)
         }
       }
 
-      Document d (kObjectType);
-      Document::AllocatorType & a = d.GetAllocator ();
-      d.AddMember ("start",           (int64_t) timer.GetStartTime (), a);
-      d.AddMember ("end",             (int64_t) timer.GetEndTime (),   a);
-      d.AddMember ("margin_before",   timer.GetMarginStart () * 60,    a);
-      d.AddMember ("margin_after",    timer.GetMarginEnd ()   * 60,    a);
-      d.AddMember ("channel_uuid",    channel_uuid,                    a);
-      d.AddMember ("channel_type",    "",                              a);
-      d.AddMember ("channel_quality", "auto",                          a);
-      d.AddMember ("broadcast_type",  "tv",                            a);
-      d.AddMember ("name",            title,                           a);
-      d.AddMember ("subname",         subtitle,                        a);
-    //d.AddMember ("media",           "Disque dur",                    a);
-    //d.AddMember ("path",            "Enregistrements",               a);
+      json d = {
+        {"start",           (int64_t) timer.GetStartTime ()},
+        {"end",             (int64_t) timer.GetEndTime ()},
+        {"margin_before",   60 * timer.GetMarginStart ()},
+        {"margin_after",    60 * timer.GetMarginEnd ()},
+        {"channel_uuid",    channel_uuid},
+        {"channel_type",    ""},
+        {"channel_quality", "auto"},
+        {"broadcast_type",  "tv"},
+        {"name",            title},
+        {"subname",         subtitle}
+      };
+      //{"media",           "Disque dur"},
+      //{"path",            "Enregistrements"},
 
       // Add timer (Freebox).
-      Document response;
-      if (! HttpPost ("/api/v6/pvr/programmed/", d, &response))
+      json result;
+      if (! HttpPost ("/api/v6/pvr/programmed/", d, &result))
         return PVR_ERROR_SERVER_ERROR;
 
       // Add timer (locally).
-      int id     = response["result"]["id"].GetInt ();
+      int id     = result.value ("id", -1);
       int unique = m_unique_id ("programmed/" + to_string (id));
-      m_timers.emplace (unique, Timer (response["result"]));
+      m_timers.emplace (unique, Timer (result));
       TriggerTimerUpdate ();
 
       // Update recordings if timer is running.
-      string state = JSON<string> (response["result"], "state");
+      string state = result.value ("state", "disabled");
       //cout << "AddTimer: TIMER[" << type << "]: '" << state << "'" << endl;
       if (state == "starting" || state == "running")
         ProcessRecordings (); // FIXME: doesn't work!
@@ -2008,17 +1969,17 @@ PVR_ERROR Freebox::AddTimer (const kodi::addon::PVRTimer & timer)
       //cout << "AddTimer: GENERATOR[" << type << ']' << endl;
 
       // Payload.
-      Document d = freebox_generator_request (timer);
+      json d = freebox_generator_request (timer);
 
       // Add generator (Freebox).
-      Document response;
-      if (! HttpPost ("/api/v6/pvr/generator/", d, &response))
+      json result;
+      if (! HttpPost ("/api/v6/pvr/generator/", d, &result))
         return PVR_ERROR_SERVER_ERROR;
 
       // Add generator (locally).
-      int id     = response["result"]["id"].GetInt ();
+      int id     = result.value ("id", -1);
       int unique = m_unique_id ("generator/" + to_string (id));
-      m_generators.emplace (unique, Generator (response["result"]));
+      m_generators.emplace (unique, Generator (result));
 
       // Reload timers.
       ProcessTimers ();
@@ -2061,28 +2022,29 @@ PVR_ERROR Freebox::UpdateTimer (const kodi::addon::PVRTimer& timer)
       string title        = timer.GetTitle ();
 
       // Payload.
-      Document d (kObjectType);
-      Document::AllocatorType & a = d.GetAllocator ();
-    //d.AddMember ("enabled",         enabled,                         a);
-      d.AddMember ("start",           (int64_t) timer.GetStartTime (), a);
-      d.AddMember ("end",             (int64_t) timer.GetEndTime (),   a);
-      d.AddMember ("margin_before",   timer.GetMarginStart () * 60,    a);
-      d.AddMember ("margin_after",    timer.GetMarginEnd ()   * 60,    a);
-      d.AddMember ("channel_uuid",    channel_uuid,                    a);
-    //d.AddMember ("channel_type",    "",                              a);
-    //d.AddMember ("channel_quality", "auto",                          a);
-      d.AddMember ("name",            title,                           a);
-    //d.AddMember ("subname",         "",                              a);
-    //d.AddMember ("media",           "Disque dur",                    a);
-    //d.AddMember ("path",            "Enregistrements",               a);
+      json d =
+      {
+      //{"enabled",         enabled},
+        {"start",           (int64_t) timer.GetStartTime ()},
+        {"end",             (int64_t) timer.GetEndTime ()},
+        {"margin_before",   60 * timer.GetMarginStart ()},
+        {"margin_after",    60 * timer.GetMarginEnd ()},
+        {"channel_uuid",    channel_uuid},
+      //{"channel_type",    ""},
+      //{"channel_quality", "auto"},
+        {"name",            title}
+      //{"subname",         ""},
+      //{"media",           "Disque dur"},
+      //{"path",            "Enregistrements"},
+      };
 
       // Update timer (Freebox).
-      Document response;
-      if (! HttpPut ("/api/v6/pvr/programmed/" + to_string (id), d, &response))
+      json result;
+      if (! HttpPut ("/api/v6/pvr/programmed/" + to_string (id), d, &result))
         return PVR_ERROR_SERVER_ERROR;
 
       // Update timer (locally).
-      i->second = Timer (response["result"]);
+      i->second = Timer (result);
       //cout << "UpdateTimer: TIMER[" << type << "]: '" << i->second.state << "'" << endl;
       TriggerTimerUpdate ();
 
@@ -2100,16 +2062,15 @@ PVR_ERROR Freebox::UpdateTimer (const kodi::addon::PVRTimer& timer)
       //cout << "UpdateTimer: TIMER_GENERATED: " << timer.iClientIndex << " > " << id << endl;
 
       // Payload.
-      Document d (kObjectType);
-      d.AddMember ("enabled", timer.GetState () != PVR_TIMER_STATE_DISABLED, d.GetAllocator ());
+      json d = {{"enabled", timer.GetState () != PVR_TIMER_STATE_DISABLED}};
 
       // Update generated timer (Freebox).
-      Document response;
-      if (! HttpPut ("/api/v6/pvr/programmed/" + to_string (id), d, &response))
+      json result;
+      if (! HttpPut ("/api/v6/pvr/programmed/" + to_string (id), d, &result))
         return PVR_ERROR_SERVER_ERROR;
 
       // Update generated timer (locally).
-      i->second = Timer (response["result"]);
+      i->second = Timer (result);
       //cout << "UpdateTimer: TIMER_GENERATED: '" << i->second.state << "'" << endl;
       TriggerTimerUpdate ();
 
@@ -2128,15 +2089,15 @@ PVR_ERROR Freebox::UpdateTimer (const kodi::addon::PVRTimer& timer)
       //cout << "UpdateTimer: GENERATOR[" << type << "]: " << timer.iClientIndex << " > " << id << endl;
 
       // Payload.
-      Document d = freebox_generator_request (timer);
+      json d = freebox_generator_request (timer);
 
       // Update generator (Freebox).
-      Document response;
-      if (! HttpPut ("/api/v6/pvr/generator/" + to_string (id), d, &response))
+      json result;
+      if (! HttpPut ("/api/v6/pvr/generator/" + to_string (id), d, &result))
         return PVR_ERROR_SERVER_ERROR;
 
       // Update generator (locally).
-      i->second = Generator (response["result"]);
+      i->second = Generator (result);
       ProcessTimers ();
       ProcessRecordings ();
 
@@ -2173,8 +2134,7 @@ PVR_ERROR Freebox::DeleteTimer (const kodi::addon::PVRTimer & timer, bool force)
       //cout << "DeleteTimer: TIMER[" << type << "]: " << timer.iClientIndex << " > " << id << endl;
 
       // Delete timer (Freebox).
-      Document response;
-      if (! HttpDelete ("/api/v6/pvr/programmed/" + to_string (id), &response))
+      if (! HttpDelete ("/api/v6/pvr/programmed/" + to_string (id)))
         return PVR_ERROR_SERVER_ERROR;
 
       // Delete timer (locally).
@@ -2200,8 +2160,7 @@ PVR_ERROR Freebox::DeleteTimer (const kodi::addon::PVRTimer & timer, bool force)
       //cout << "DeleteTimer: GENERATOR[" << type << "]: " << timer.GetClientIndex () << " > " << id << endl;
 
       // Delete generator (Freebox).
-      Document response;
-      if (! HttpDelete ("/api/v6/pvr/generator/" + to_string (id), &response))
+      if (! HttpDelete ("/api/v6/pvr/generator/" + to_string (id)))
         return PVR_ERROR_SERVER_ERROR;
 
       // Delete generated timers (locally).
