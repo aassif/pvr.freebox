@@ -54,7 +54,8 @@
 #define PVR_FREEBOX_STRING_CHANNEL_QUALITY_LD   30018
 #define PVR_FREEBOX_STRING_CHANNEL_QUALITY_3D   30019
 
-#define PVR_FREEBOX_DEFAULT_SERVER   "mafreebox.freebox.fr"
+#define PVR_FREEBOX_DEFAULT_HOSTNAME "mafreebox.freebox.fr"
+#define PVR_FREEBOX_DEFAULT_NETBIOS  "FREEBOX"
 #define PVR_FREEBOX_DEFAULT_DELAY    10
 #define PVR_FREEBOX_DEFAULT_SOURCE   Source::IPTV
 #define PVR_FREEBOX_DEFAULT_QUALITY  Quality::HD
@@ -382,8 +383,10 @@ class ATTRIBUTE_HIDDEN Freebox :
     void ReadSettings ();
 
     // Freebox Server.
-    void SetServer (const std::string &);
-    std::string GetServer () const;
+    void SetHostName (const std::string &);
+    std::string GetHostName () const;
+    void SetNetBIOS (const std::string &);
+    std::string GetNetBIOS () const;
 
     // Source setting.
     void SetSource (Source);
@@ -469,7 +472,8 @@ class ATTRIBUTE_HIDDEN Freebox :
     // Add-on path.
     std::string m_path;
     // Freebox Server.
-    std::string m_server = PVR_FREEBOX_DEFAULT_SERVER;
+    std::string m_hostname = PVR_FREEBOX_DEFAULT_HOSTNAME;
+    std::string m_netbios  = PVR_FREEBOX_DEFAULT_NETBIOS;
     // Delay between queries.
     int m_delay = PVR_FREEBOX_DEFAULT_DELAY;
     // Freebox OS //////////////////////////////////////////////////////////////

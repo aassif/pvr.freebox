@@ -857,8 +857,8 @@ bool Freebox::ProcessChannels ()
           for (auto & s : *f)
             data.emplace_back (ParseSource (s["type"]),
                                ParseQuality (s["quality"]),
-                               freebox_replace_server (s["rtsp"], m_server),
-                               freebox_replace_server (s["hls"], m_server));
+                               freebox_replace_server (s["rtsp"], m_hostname),
+                               freebox_replace_server (s["hls"], m_hostname));
       }
 #if 0
       if (! kodi::vfs::DirectoryExists (m_path + "logos"))
@@ -927,22 +927,34 @@ Freebox::~Freebox ()
   CloseSession ();
 }
 
-void Freebox::SetServer (const string & server)
+void Freebox::SetHostName (const string & hostname)
 {
   lock_guard<recursive_mutex> lock (m_mutex);
-  m_server = server;
+  m_hostname = hostname;
 }
 
-string Freebox::GetServer () const
+string Freebox::GetHostName () const
 {
   lock_guard<recursive_mutex> lock (m_mutex);
-  return m_server;
+  return m_hostname;
+}
+
+void Freebox::SetNetBIOS (const string & netbios)
+{
+  lock_guard<recursive_mutex> lock (m_mutex);
+  m_netbios = netbios;
+}
+
+string Freebox::GetNetBIOS () const
+{
+  lock_guard<recursive_mutex> lock (m_mutex);
+  return m_netbios;
 }
 
 // NOT thread-safe !
 string Freebox::URL (const string & query) const
 {
-  return "http://" + m_server + query;
+  return "http://" + m_hostname + query;
 }
 
 void Freebox::SetSource (Source s)
@@ -1224,9 +1236,15 @@ ADDON_STATUS Freebox::Create ()
 
 ADDON_STATUS Freebox::SetSetting (const string & settingName, const kodi::CSettingValue & settingValue)
 {
-  /**/ if (settingName == "server")
+  /**/ if (settingName == "hostname")
   {
-    SetServer (settingValue.GetString ());
+    SetHostName (settingValue.GetString ());
+    return ADDON_STATUS_NEED_RESTART;
+  }
+
+  else if (settingName == "netbios")
+  {
+    SetNetBIOS (settingValue.GetString ());
     return ADDON_STATUS_NEED_RESTART;
   }
 
@@ -1259,7 +1277,8 @@ ADDON_STATUS Freebox::SetSetting (const string & settingName, const kodi::CSetti
 
 void Freebox::ReadSettings ()
 {
-  m_server       = kodi::GetSettingString         ("server",   PVR_FREEBOX_DEFAULT_SERVER);
+  m_hostname     = kodi::GetSettingString         ("hostname", PVR_FREEBOX_DEFAULT_HOSTNAME);
+  m_netbios      = kodi::GetSettingString         ("netbios",  PVR_FREEBOX_DEFAULT_NETBIOS);
   m_delay        = kodi::GetSettingInt            ("delay",    PVR_FREEBOX_DEFAULT_DELAY);
   m_tv_source    = kodi::GetSettingEnum<Source>   ("source",   PVR_FREEBOX_DEFAULT_SOURCE);
   m_tv_quality   = kodi::GetSettingEnum<Quality>  ("quality",  PVR_FREEBOX_DEFAULT_QUALITY);
@@ -1304,7 +1323,7 @@ PVR_ERROR Freebox::GetBackendVersion (string & version)
 
 PVR_ERROR Freebox::GetBackendHostname (string & hostname)
 {
-  hostname = GetServer ();
+  hostname = GetHostName ();
   return PVR_ERROR_NO_ERROR;
 }
 
@@ -1542,7 +1561,7 @@ PVR_ERROR Freebox::GetRecordingStreamProperties (const kodi::addon::PVRRecording
     return PVR_ERROR_SERVER_ERROR;
 
   const Recording & r = i->second;
-  string stream = "smb://" + m_server + '/' + r.media + '/' + r.path + '/' + r.filename;
+  string stream = "smb://" + m_netbios + '/' + r.media + '/' + r.path + '/' + r.filename;
   properties.emplace_back (PVR_STREAM_PROPERTY_STREAMURL, stream);
   properties.emplace_back (PVR_STREAM_PROPERTY_ISREALTIMESTREAM, "false");
 

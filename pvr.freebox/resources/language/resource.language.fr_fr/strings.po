@@ -117,12 +117,12 @@ msgid "Convert French categories into standard categories."
 msgstr "Conversion des catégories françaises en catégories standard."
 
 msgctxt "#30025"
-msgid "Server"
-msgstr "Serveur"
+msgid "Server (DNS)"
+msgstr "Serveur (DNS)"
 
 msgctxt "#30026"
-msgid "Server name or IP address."
-msgstr "Nom du serveur ou adresse IP."
+msgid "Server's host name or IP address."
+msgstr "Nom d'hôte du serveur ou adresse IP."
 
 msgctxt "#30027"
 msgid "Protocol"
@@ -139,4 +139,12 @@ msgstr "RTSP"
 msgctxt "#30030"
 msgid "HLS"
 msgstr "HLS"
+
+msgctxt "#30031"
+msgid "Server (NetBIOS)"
+msgstr "Serveur (NetBIOS)"
+
+msgctxt "#30032"
+msgid "Server's NetBIOS name"
+msgstr "Nom NetBIOS du serveur."
 
