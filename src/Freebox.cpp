@@ -19,8 +19,6 @@
  *
  */
 
-#define RAPIDJSON_HAS_STDSTRING 1
-
 #include <iostream>
 #include <iomanip>
 #include <string>
@@ -821,12 +819,12 @@ bool Freebox::ProcessChannels ()
   }
 
 #if 0
-  for (auto i : conflicts_by_major)
+  for (auto & i : conflicts_by_major)
     cout << i.first << " : " << StrUUIDs (i.second) << endl;
 #endif
 
 #if 0
-  for (auto i = conflicts_by_uuid)
+  for (auto & i : conflicts_by_uuid)
     cout << i.first << " : " << StrNumbers (i.second) << endl;
 #endif
 
@@ -858,7 +856,7 @@ bool Freebox::ProcessChannels ()
             data.emplace_back (ParseSource (s["type"]),
                                ParseQuality (s["quality"]),
                                freebox_replace_server (s["rtsp"], m_hostname),
-                               freebox_replace_server (s["hls"], m_hostname));
+                               freebox_replace_server (s.value ("hls", ""), m_hostname));
       }
 #if 0
       if (! kodi::vfs::DirectoryExists (m_path + "logos"))
