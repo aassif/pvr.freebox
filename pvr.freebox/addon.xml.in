@@ -19,5 +19,7 @@
     <assets>
       <icon>icon.png</icon>
     </assets>
+    <news>
+    </news>
   </extension>
 </addon>
