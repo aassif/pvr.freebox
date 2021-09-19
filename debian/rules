@@ -13,10 +13,7 @@
 	dh $@ 
 
 override_dh_auto_configure:
-	dh_auto_configure -- -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=1 -DUSE_LTO=1
-
-override_dh_strip:
-	dh_strip -pkodi-pvr-freebox --dbg-package=kodi-pvr-freebox-dbg
+	dh_auto_configure -- -DCMAKE_BUILD_TYPE=RelWithDebInfo -DBUILD_SHARED_LIBS=1 -DUSE_LTO=1
 
 override_dh_installdocs:
 	dh_installdocs --link-doc=kodi-pvr-freebox
