@@ -875,26 +875,20 @@ bool Freebox::ProcessChannels ()
     ifstream ifs (m_path + "source.txt");
     json d = json::parse (ifs, nullptr, false);
     if (d.is_object ())
-#if __cplusplus >= 201703L
-      for (auto & [id, source] = d.items ())
-        m_tv_prefs_source.emplace (ChannelId (id), ParseSource (source));
-#else
+    {
       for (auto & item : d.items ())
         m_tv_prefs_source.emplace (ChannelId (item.key ()), ParseSource (item.value ()));
-#endif
+    }
   }
 
   {
     ifstream ifs (m_path + "quality.txt");
     json d = json::parse (ifs, nullptr, false);
     if (d.is_object ())
-#if __cplusplus >= 201703L
-      for (auto & [id, quality] = d.items ())
-        m_tv_prefs_quality.emplace (ChannelId (id), ParseQuality (quality));
-#else
+    {
       for (auto & item : d.items ())
         m_tv_prefs_quality.emplace (ChannelId (item.key ()), ParseQuality (item.value ()));
-#endif
+    }
   }
 
   return true;
