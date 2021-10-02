@@ -1,6 +1,6 @@
 # Extension PVR Kodi pour Freebox TV
 
-[![Build Status](https://travis-ci.org/aassif/pvr.freebox.svg?branch=Matrix)](https://travis-ci.org/aassif/pvr.freebox)
+[![Build and run tests](https://github.com/aassif/pvr.freebox/actions/workflows/build.yml/badge.svg?branch=Nexus)](https://github.com/aassif/pvr.freebox/actions/workflows/build.yml)
 
 Compatible Freebox Revolution, Freebox Mini 4K et Freebox Delta.
 
