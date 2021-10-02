@@ -1290,6 +1290,7 @@ PVR_ERROR Freebox::GetCapabilities (kodi::addon::PVRCapabilities & caps)
   caps.SetSupportsRadio                    (false);
   caps.SetSupportsChannelGroups            (false);
   caps.SetSupportsRecordings               (true);
+  caps.SetSupportsRecordingsDelete         (true);
   caps.SetSupportsRecordingSize            (true);
   caps.SetSupportsRecordingsRename         (true);
   caps.SetSupportsRecordingsUndelete       (false);
