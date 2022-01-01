@@ -91,7 +91,7 @@ class Index
     }
 };
 
-class ATTRIBUTE_HIDDEN Freebox :
+class ATTR_DLL_LOCAL Freebox :
   public kodi::addon::CAddonBase,
   public kodi::addon::CInstancePVRClient,
   public kodi::tools::CThread
@@ -336,7 +336,7 @@ class ATTRIBUTE_HIDDEN Freebox :
 
     // A D D O N  - B A S I C S ////////////////////////////////////////////////
     ADDON_STATUS Create () override;
-    ADDON_STATUS SetSetting (const std::string &, const kodi::CSettingValue &) override;
+    ADDON_STATUS SetSetting (const std::string &, const kodi::addon::CSettingValue &) override;
 
     // P V R  - B A S I C S ////////////////////////////////////////////////////
     PVR_ERROR GetCapabilities (kodi::addon::PVRCapabilities &) override;

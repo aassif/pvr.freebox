@@ -340,7 +340,7 @@ bool Freebox::StartSession ()
     }
     else
     {
-      string notification = kodi::GetLocalizedString (PVR_FREEBOX_STRING_AUTH_REQUIRED);
+      string notification = kodi::addon::GetLocalizedString (PVR_FREEBOX_STRING_AUTH_REQUIRED);
       kodi::QueueNotification (QUEUE_WARNING, "", notification);
       return false;
     }
@@ -739,7 +739,7 @@ bool Freebox::ProcessChannels ()
   json channels;
   if (! HttpGet ("/api/v6/tv/channels", &channels)) return false;
 
-  string notification = kodi::GetLocalizedString (PVR_FREEBOX_STRING_CHANNELS_LOADED);
+  string notification = kodi::addon::GetLocalizedString (PVR_FREEBOX_STRING_CHANNELS_LOADED);
   kodi::QueueFormattedNotification (QUEUE_INFO, notification.c_str (), channels.size ());
 
   //json bouquets;
@@ -1226,7 +1226,7 @@ ADDON_STATUS Freebox::Create ()
   return ADDON_STATUS_OK;
 }
 
-ADDON_STATUS Freebox::SetSetting (const string & settingName, const kodi::CSettingValue & settingValue)
+ADDON_STATUS Freebox::SetSetting (const string & settingName, const kodi::addon::CSettingValue & settingValue)
 {
   /**/ if (settingName == "hostname")
   {
@@ -1269,14 +1269,14 @@ ADDON_STATUS Freebox::SetSetting (const string & settingName, const kodi::CSetti
 
 void Freebox::ReadSettings ()
 {
-  m_hostname     = kodi::GetSettingString         ("hostname", PVR_FREEBOX_DEFAULT_HOSTNAME);
-  m_netbios      = kodi::GetSettingString         ("netbios",  PVR_FREEBOX_DEFAULT_NETBIOS);
-  m_delay        = kodi::GetSettingInt            ("delay",    PVR_FREEBOX_DEFAULT_DELAY);
-  m_tv_source    = kodi::GetSettingEnum<Source>   ("source",   PVR_FREEBOX_DEFAULT_SOURCE);
-  m_tv_quality   = kodi::GetSettingEnum<Quality>  ("quality",  PVR_FREEBOX_DEFAULT_QUALITY);
-  m_tv_protocol  = kodi::GetSettingEnum<Protocol> ("protocol", PVR_FREEBOX_DEFAULT_PROTOCOL);
-  m_epg_extended = kodi::GetSettingBoolean        ("extended", PVR_FREEBOX_DEFAULT_EXTENDED);
-  m_epg_colors   = kodi::GetSettingBoolean        ("colors",   PVR_FREEBOX_DEFAULT_COLORS);
+  m_hostname     = kodi::addon::GetSettingString         ("hostname", PVR_FREEBOX_DEFAULT_HOSTNAME);
+  m_netbios      = kodi::addon::GetSettingString         ("netbios",  PVR_FREEBOX_DEFAULT_NETBIOS);
+  m_delay        = kodi::addon::GetSettingInt            ("delay",    PVR_FREEBOX_DEFAULT_DELAY);
+  m_tv_source    = kodi::addon::GetSettingEnum<Source>   ("source",   PVR_FREEBOX_DEFAULT_SOURCE);
+  m_tv_quality   = kodi::addon::GetSettingEnum<Quality>  ("quality",  PVR_FREEBOX_DEFAULT_QUALITY);
+  m_tv_protocol  = kodi::addon::GetSettingEnum<Protocol> ("protocol", PVR_FREEBOX_DEFAULT_PROTOCOL);
+  m_epg_extended = kodi::addon::GetSettingBoolean        ("extended", PVR_FREEBOX_DEFAULT_EXTENDED);
+  m_epg_colors   = kodi::addon::GetSettingBoolean        ("colors",   PVR_FREEBOX_DEFAULT_COLORS);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2207,14 +2207,14 @@ PVR_ERROR Freebox::DeleteTimer (const kodi::addon::PVRTimer & timer, bool force)
 enum Freebox::Source Freebox::DialogSource (enum Source selected)
 {
   // Heading.
-  string heading = kodi::GetLocalizedString (PVR_FREEBOX_STRING_CHANNEL_SOURCE);
+  string heading = kodi::addon::GetLocalizedString (PVR_FREEBOX_STRING_CHANNEL_SOURCE);
 
   // Entries.
   const vector<string> LABELS =
   {
-    kodi::GetLocalizedString (PVR_FREEBOX_STRING_CHANNEL_SOURCE_AUTO),
-    kodi::GetLocalizedString (PVR_FREEBOX_STRING_CHANNEL_SOURCE_IPTV),
-    kodi::GetLocalizedString (PVR_FREEBOX_STRING_CHANNEL_SOURCE_DVB)
+    kodi::addon::GetLocalizedString (PVR_FREEBOX_STRING_CHANNEL_SOURCE_AUTO),
+    kodi::addon::GetLocalizedString (PVR_FREEBOX_STRING_CHANNEL_SOURCE_IPTV),
+    kodi::addon::GetLocalizedString (PVR_FREEBOX_STRING_CHANNEL_SOURCE_DVB)
   };
 
   return (Source) kodi::gui::dialogs::Select::Show (heading, LABELS, (int) selected);
@@ -2224,16 +2224,16 @@ enum Freebox::Source Freebox::DialogSource (enum Source selected)
 enum Freebox::Quality Freebox::DialogQuality (enum Quality selected)
 {
   // Heading.
-  string heading = kodi::GetLocalizedString (PVR_FREEBOX_STRING_CHANNEL_QUALITY);
+  string heading = kodi::addon::GetLocalizedString (PVR_FREEBOX_STRING_CHANNEL_QUALITY);
 
   // Entries.
   const vector<string> LABELS =
   {
-    kodi::GetLocalizedString (PVR_FREEBOX_STRING_CHANNEL_QUALITY_AUTO),
-    kodi::GetLocalizedString (PVR_FREEBOX_STRING_CHANNEL_QUALITY_HD),
-    kodi::GetLocalizedString (PVR_FREEBOX_STRING_CHANNEL_QUALITY_SD),
-    kodi::GetLocalizedString (PVR_FREEBOX_STRING_CHANNEL_QUALITY_LD),
-    kodi::GetLocalizedString (PVR_FREEBOX_STRING_CHANNEL_QUALITY_3D)
+    kodi::addon::GetLocalizedString (PVR_FREEBOX_STRING_CHANNEL_QUALITY_AUTO),
+    kodi::addon::GetLocalizedString (PVR_FREEBOX_STRING_CHANNEL_QUALITY_HD),
+    kodi::addon::GetLocalizedString (PVR_FREEBOX_STRING_CHANNEL_QUALITY_SD),
+    kodi::addon::GetLocalizedString (PVR_FREEBOX_STRING_CHANNEL_QUALITY_LD),
+    kodi::addon::GetLocalizedString (PVR_FREEBOX_STRING_CHANNEL_QUALITY_3D)
   };
 
   return (Quality) kodi::gui::dialogs::Select::Show (heading, LABELS, (int) selected);
