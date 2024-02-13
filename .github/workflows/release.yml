@@ -14,7 +14,7 @@ jobs:
 
       # Checkout the current repository into a directory (repositories name)
       - name: Checkout Repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
           path: ${{ github.event.repository.name }}
@@ -23,12 +23,14 @@ jobs:
       # - libxml2-utils, xmlstarlet: reading news and version from addon.xml.in
       - name: Install dependencies
         run: |
+          sudo apt-get update
           sudo apt-get install libxml2-utils xmlstarlet
 
       # Create the variables required by the following steps
       # - steps.required-variables.outputs.changes: latest entry in the changelog.txt (if exists), or addon.xml.in news element
       # - steps.required-variables.outputs.version: version element from addon.xml.in
       # - steps.required-variables.outputs.branch: branch of the triggering ref
+      # Note: we use a random EOF for 'changes' as is best practice for for multiline variables
       - name: Get required variables
         id: required-variables
         run: |
@@ -37,16 +39,14 @@ jobs:
           then
             changes=$(xmlstarlet fo -R "$(find . -name addon.xml.in)" | xmlstarlet sel -t -v 'string(/addon/extension/news)' | awk -v RS= 'NR==1')
           fi
-          changes="${changes//'%'/'%25'}"
-          changes="${changes//$'\n'/'%0A'}"
-          changes="${changes//$'\r'/'%0D'}"
-          changes="${changes//$'\\n'/'%0A'}"
-          changes="${changes//$'\\r'/'%0D'}"
-          echo ::set-output name=changes::$changes
+          EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
+          echo "changes<<$EOF" >> $GITHUB_OUTPUT
+          echo "$changes" >> $GITHUB_OUTPUT
+          echo "$EOF" >> $GITHUB_OUTPUT
           version=$(xmlstarlet fo -R "$(find . -name addon.xml.in)" | xmlstarlet sel -t -v 'string(/addon/@version)')
-          echo ::set-output name=version::$version
+          echo "version=$version" >> $GITHUB_OUTPUT
           branch=$(echo ${GITHUB_REF#refs/heads/})
-          echo ::set-output name=branch::$branch
+          echo "branch=$branch" >> $GITHUB_OUTPUT
         working-directory: ${{ github.event.repository.name }}
 
       # Create a release at {steps.required-variables.outputs.branch}
