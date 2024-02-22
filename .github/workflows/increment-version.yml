@@ -8,7 +8,7 @@ on:
 
 jobs:
   default:
-    if: github.repository == 'kodi-pvr/pvr.freebox'
+    if: github.repository == 'aassif/pvr.freebox'
     runs-on: ubuntu-latest
     name: Increment add-on version when languages are updated
 
@@ -42,6 +42,7 @@ jobs:
 
       - name: Install dependencies
         run: |
+          sudo apt-get update
           sudo apt-get install libxml2-utils xmlstarlet
 
       - name: Get required variables
