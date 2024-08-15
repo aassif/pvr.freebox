@@ -356,7 +356,7 @@ class ATTR_DLL_LOCAL Freebox :
     PVR_ERROR GetChannelGroupsAmount(int &) override;
     PVR_ERROR GetChannelGroups(bool, kodi::addon::PVRChannelGroupsResultSet &) override;
     PVR_ERROR GetChannelGroupMembers(const kodi::addon::PVRChannelGroup &, kodi::addon::PVRChannelGroupMembersResultSet &) override;
-    PVR_ERROR GetChannelStreamProperties(const kodi::addon::PVRChannel &, std::vector<kodi::addon::PVRStreamProperty> &) override;
+    PVR_ERROR GetChannelStreamProperties(const kodi::addon::PVRChannel &, PVR_SOURCE, std::vector<kodi::addon::PVRStreamProperty> &) override;
 
     // R E C O R D I N G S /////////////////////////////////////////////////////
     PVR_ERROR GetRecordingsAmount(bool, int &) override;

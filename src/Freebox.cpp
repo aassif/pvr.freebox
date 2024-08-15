@@ -1386,7 +1386,7 @@ PVR_ERROR Freebox::GetChannelGroupMembers (const kodi::addon::PVRChannelGroup & 
   return PVR_ERROR_NO_ERROR;
 }
 
-PVR_ERROR Freebox::GetChannelStreamProperties (const kodi::addon::PVRChannel & channel, std::vector<kodi::addon::PVRStreamProperty> & properties)
+PVR_ERROR Freebox::GetChannelStreamProperties (const kodi::addon::PVRChannel & channel, PVR_SOURCE /*source*/, std::vector<kodi::addon::PVRStreamProperty> & properties)
 {
   enum Source  source  = ChannelSource  (channel.GetUniqueId (), true);
   enum Quality quality = ChannelQuality (channel.GetUniqueId (), true);
