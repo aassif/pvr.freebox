@@ -591,6 +591,7 @@ PVR_ERROR Freebox::Channel::GetStreamProperties (enum Source source,
     {
       case Protocol::RTSP : properties.emplace_back (PVR_STREAM_PROPERTY_STREAMURL, streams[index].rtsp); break;
       case Protocol::HLS  : properties.emplace_back (PVR_STREAM_PROPERTY_STREAMURL, streams[index].hls);  break;
+      default: break;
     }
 
     properties.emplace_back (PVR_STREAM_PROPERTY_ISREALTIMESTREAM, "true");
@@ -755,7 +756,7 @@ bool Freebox::ProcessChannels ()
   // Conflicts by major.
   map<int, Conflicts> conflicts_by_major;
 
-  for (int i = 0; i < bouquet.size (); ++i)
+  for (unsigned int i = 0; i < bouquet.size (); ++i)
   {
     string uuid  = bouquet[i]["uuid"];
     int    major = bouquet[i]["number"];
