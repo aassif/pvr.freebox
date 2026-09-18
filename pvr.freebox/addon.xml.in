@@ -16,6 +16,7 @@
     <disclaimer lang="fr_FR">Logiciel en cours d'élaboration !</disclaimer>
     <disclaimer lang="en_GB">This is unstable software!</disclaimer>
     <platform>@PLATFORM@</platform>
+    <license>MIT</license>
     <assets>
       <icon>icon.png</icon>
     </assets>
