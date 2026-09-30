@@ -13,7 +13,7 @@ include_directories(${KODI_INCLUDE_DIR}/.. # Hack way with "/..", need bigger Ko
                     ${ZLIB_INCLUDE_DIRS}
                     ${NLOHMANNJSON_INCLUDE_DIRS})
 
-set(DEPLIBS ${OPENSSL_LIBRARIES} ${ZLIB_LIBRARIES})
+set(DEPLIBS OpenSSL::SSL OpenSSL::Crypto ZLIB::ZLIB)
 
 if(WIN32)
   list(APPEND DEPLIBS ws2_32)
