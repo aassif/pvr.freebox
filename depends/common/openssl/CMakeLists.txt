@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.10)
 project(openssl)
 
 if(NOT CPU AND CMAKE_SYSTEM_PROCESSOR)
@@ -25,15 +25,18 @@ elseif(CORE_SYSTEM_NAME MATCHES "linux" OR CORE_SYSTEM_NAME MATCHES "rbpi")
 elseif(CORE_SYSTEM_NAME MATCHES "ios" OR CORE_SYSTEM_NAME MATCHES "darwin_embedded")
   set(OPENSSL_TARGET iphoneos-cross)
 elseif(CORE_SYSTEM_NAME MATCHES "osx")
-  if(CPU MATCHES aarch64 OR CPU MATCHES arm64 OR ARCH MATCHES aarch64 OR ARCH MATCHES arm64)
-    set(OPENSSL_TARGET darwin64-arm64-cc)
-  else()
+  if(CPU STREQUAL x86_64)
     set(OPENSSL_TARGET darwin64-x86_64-cc)
+  else()
+    set(OPENSSL_TARGET darwin64-arm64-cc)
   endif()
 endif()
 
 list(APPEND configure_command ${CMAKE_COMMAND} -E env)
-list(APPEND configure_command ANDROID_NDK=${TOOLCHAIN})
+if(CORE_SYSTEM_NAME MATCHES "android")
+  list(APPEND configure_command ANDROID_NDK_ROOT=${NDKROOT})
+  list(APPEND configure_command PATH=${TOOLCHAIN}/bin:$ENV{PATH})
+endif()
 list(APPEND configure_command AR=${CMAKE_AR})
 list(APPEND configure_command CC=${CMAKE_C_COMPILER})
 list(APPEND configure_command CFLAGS=${CMAKE_C_FLAGS})
@@ -45,15 +48,22 @@ list(APPEND configure_command LDFLAGS=${CMAKE_LD_FLAGS})
 list(APPEND configure_command RANLIB=${CMAKE_RANLIB})
 list(APPEND configure_command <SOURCE_DIR>/Configure)
 list(APPEND configure_command ${OPENSSL_TARGET})
-list(APPEND configure_command no-shared zlib)
-if(PLATFORM MATCHES appletvos)
-  list(APPEND configure_command no-async)
-endif()
+list(APPEND configure_command no-shared no-apps no-tests no-ui-console zlib)
 list(APPEND configure_command --prefix=${OUTPUT_DIR})
 list(APPEND configure_command --with-zlib-include=${OUTPUT_DIR}/include)
 list(APPEND configure_command --with-zlib-lib=${OUTPUT_DIR}/lib)
-list(APPEND configure_command COMMAND sed -ie "s|PROGRAMS=|PROGRAMS=#|" ${PROJECT_SOURCE_DIR}/Makefile)
-list(APPEND configure_command COMMAND sed -ie "s|-isysroot $.CROSS_TOP./SDKs/$.CROSS_SDK. ||" ${PROJECT_SOURCE_DIR}/Makefile)
+if(CORE_SYSTEM_NAME MATCHES "android")
+  list(APPEND configure_command -U__ANDROID_API__)
+  list(APPEND configure_command -D__ANDROID_API__=24)
+  list(APPEND configure_command -isystem ${NDKROOT}/sysroot/usr/include)
+  list(APPEND configure_command -isystem ${NDKROOT}/sysroot/usr/include/${HOST})
+endif()
+
+list(APPEND build_command ${CMAKE_COMMAND} -E env)
+if(TOOLCHAIN)
+  list(APPEND build_command PATH=${TOOLCHAIN}/bin:$ENV{PATH})
+endif()
+list(APPEND build_command $(MAKE) build_sw)
 
 include(ExternalProject)
 
@@ -61,7 +71,8 @@ externalproject_add(openssl
                     SOURCE_DIR ${CMAKE_SOURCE_DIR}
                     UPDATE_COMMAND ""
                     CONFIGURE_COMMAND ${configure_command}
+                    BUILD_COMMAND ${build_command}
                     INSTALL_COMMAND ""
                     BUILD_IN_SOURCE 1)
 
-install(CODE "execute_process(COMMAND make install_sw WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})")
+install(CODE "execute_process(COMMAND make install_dev WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})")
